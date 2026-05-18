@@ -3,21 +3,19 @@ import 'package:flutter/material.dart';
 class GradeHeaderCard extends StatelessWidget {
   const GradeHeaderCard({
     super.key,
-    required this.showTable,
-    required this.onToggle,
     required this.onImportPressed,
     required this.onExportPressed,
     required this.classOptions,
     required this.selectedClass,
     required this.onClassChanged,
+    required this.isImporting,
   });
-  final bool showTable;
-  final ValueChanged<bool> onToggle;
   final VoidCallback onImportPressed;
   final VoidCallback? onExportPressed;
   final List<String> classOptions;
   final String? selectedClass;
   final ValueChanged<String?> onClassChanged;
+  final bool isImporting;
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -37,9 +35,15 @@ class GradeHeaderCard extends StatelessWidget {
                 ),
 
                 ElevatedButton.icon(
-                  onPressed: onImportPressed,
-                  icon: const Icon(Icons.upload_outlined),
-                  label: const Text("Import File"),
+                  onPressed: isImporting ? null : onImportPressed,
+                  icon: isImporting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.upload_file_outlined),
+                  label: Text(isImporting ? 'Uploading...' : 'Import File'),
                 ),
                 const SizedBox(width: 8),
 
@@ -55,51 +59,23 @@ class GradeHeaderCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return DropdownMenu<String>(
-                        // Cho ô chọn rộng đúng bằng phần Expanded
-                        width: constraints.maxWidth,
-
-                        // Giá trị đang chọn
-                        initialSelection: selectedClass,
-
-                        label: const Text('Choose Class'),
-                        hintText: 'Select a class',
-
-                        // Giới hạn chiều cao menu để không che cả màn hình
-                        menuHeight: 220,
-
-                        // Ép menu mở từ cạnh dưới của ô chọn
-                        menuStyle: const MenuStyle(
-                          alignment: AlignmentDirectional.bottomStart,
-                        ),
-
-                        // Dịch xuống 1 chút cho dễ nhìn (optional)
-                        alignmentOffset: const Offset(0, 4),
-
-                        requestFocusOnTap: false,
-                        onSelected: onClassChanged,
-
-                        dropdownMenuEntries: classOptions
-                            .map(
-                              (e) =>
-                                  DropdownMenuEntry<String>(value: e, label: e),
-                            )
-                            .toList(),
-                      );
-                    },
+                  child: DropdownButtonFormField<String>(
+                    value: selectedClass,
+                    menuMaxHeight: 260,
+                    decoration: const InputDecoration(
+                      labelText: 'Choose Class',
+                      hintText: 'Import a file first',
+                    ),
+                    items: classOptions
+                        .map(
+                          (className) => DropdownMenuItem<String>(
+                            value: className,
+                            child: Text(className),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: classOptions.isEmpty ? null : onClassChanged,
                   ),
-                ),
-
-                const SizedBox(width: 12),
-
-                //đây chỉ là nút ví dụ để mở bảng thôi về sau là khi import thành công 1 file sẽ tự động mở bảng và hiển thị đúng dữ liệu
-                Row(
-                  children: [
-                    const Text("Demo Table"),
-                    Switch(value: showTable, onChanged: onToggle),
-                  ],
                 ),
               ],
             ),
