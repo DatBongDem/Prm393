@@ -15,9 +15,15 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import be.business.dtos.StudentGrade;
+
 @Service
 public class GradeService {
 
+    // cache dữ liệu mới upload
+    private Map<String, List<StudentGrade>> latestClasses;
+
+    // ================= READ EXCEL =================
     public Map<String, List<StudentGrade>> processExcel(
             InputStream inputStream
     ) throws Exception {
@@ -39,9 +45,8 @@ public class GradeService {
         NodeList worksheets =
                 document.getElementsByTagName("Worksheet");
 
-        for (int s = 0;
-             s < worksheets.getLength();
-             s++) {
+        // ================= LOOP SHEET =================
+        for (int s = 0; s < worksheets.getLength(); s++) {
 
             Element worksheet =
                     (Element) worksheets.item(s);
@@ -57,9 +62,7 @@ public class GradeService {
                     worksheet.getElementsByTagName("Row");
 
             // bỏ header
-            for (int i = 1;
-                 i < rows.getLength();
-                 i++) {
+            for (int i = 1; i < rows.getLength(); i++) {
 
                 Element row =
                         (Element) rows.item(i);
@@ -72,9 +75,8 @@ public class GradeService {
 
                 int currentIndex = 1;
 
-                for (int j = 0;
-                     j < cellNodes.getLength();
-                     j++) {
+                // ================= READ CELL =================
+                for (int j = 0; j < cellNodes.getLength(); j++) {
 
                     Element cell =
                             (Element) cellNodes.item(j);
@@ -101,52 +103,64 @@ public class GradeService {
                                         .trim();
                     }
 
-                    dataMap.put(
-                            currentIndex,
-                            value
-                    );
+                    dataMap.put(currentIndex, value);
 
                     currentIndex++;
                 }
 
+                // ================= BASIC =================
+
                 String rollNumber =
                         dataMap.getOrDefault(2, "");
-
-                String fullName =
-                        dataMap.getOrDefault(5, "");
 
                 if (rollNumber.isBlank()) {
                     continue;
                 }
 
-                // ===== FINAL =====
+                String email =
+                        dataMap.getOrDefault(3, "");
+
+                String memberCode =
+                        dataMap.getOrDefault(4, "");
+
+                String fullName =
+                        dataMap.getOrDefault(5, "");
+
+                String examDate =
+                        dataMap.getOrDefault(6, "");
+
+                String examNote =
+                        dataMap.getOrDefault(7, "");
+
+                // ================= FINAL =================
 
                 double finalExam =
                         parseDouble(
                                 dataMap.getOrDefault(8, "0")
                         );
 
-                String finalComment =
+                String finalExamComment =
                         dataMap.getOrDefault(9, "");
 
-                double finalResit =
+                double finalExamResit =
                         parseDouble(
                                 dataMap.getOrDefault(10, "0")
                         );
 
-                // ===== PRACTICAL =====
+                String finalExamResitComment =
+                        dataMap.getOrDefault(11, "");
 
-                double practical =
+                // ================= PRACTICAL =================
+
+                double practicalExam =
                         parseDouble(
                                 dataMap.getOrDefault(12, "0")
                         );
 
-                double practicalResit =
-                        parseDouble(
-                                dataMap.getOrDefault(13, "0")
-                        );
+                String practicalExamComment =
+                        dataMap.getOrDefault(13, "");
 
-                // ===== PT =====
+                // ================= PT =================
 
                 double pt1 =
                         parseDouble(
@@ -172,7 +186,7 @@ public class GradeService {
                 String pt3Comment =
                         dataMap.getOrDefault(19, "");
 
-                // ===== PROJECT =====
+                // ================= PROJECT =================
 
                 double project =
                         parseDouble(
@@ -182,22 +196,18 @@ public class GradeService {
                 String projectComment =
                         dataMap.getOrDefault(21, "");
 
-                // ===== SCORE USED FOR CALCULATION =====
+                // ================= CALCULATE =================
 
                 double finalUsed =
-                        finalResit > 0
-                                ? finalResit
+                        finalExamResit > 0
+                                ? finalExamResit
                                 : finalExam;
 
                 double practicalUsed =
-                        practicalResit > 0
-                                ? practicalResit
-                                : practical;
-
-                // ===== TOTAL =====
+                        practicalExam;
 
                 double progressAvg =
-                        (pt1 + pt2 + pt3) / 3;
+                        (pt1 + pt2 + pt3) / 3.0;
 
                 double total =
                         finalUsed * 0.30
@@ -207,7 +217,7 @@ public class GradeService {
 
                 total = round(total);
 
-                // ===== RESULT =====
+                // ================= RESULT =================
 
                 String resultStatus;
                 String comment;
@@ -250,52 +260,61 @@ public class GradeService {
                     }
 
                     comment =
-                            String.join(
-                                    " ",
-                                    reasons
-                            );
+                            String.join(" ", reasons);
                 }
 
-                students.add(
-                        new StudentGrade(
-                                rollNumber,
-                                fullName,
+                // ================= CREATE DTO =================
 
-                                finalExam,
-                                finalComment,
-                                finalResit,
+                StudentGrade student = new StudentGrade();
 
-                                practical,
-                                practicalResit,
+student.setClassName(className);
 
-                                pt1,
-                                pt1Comment,
+student.setRollNumber(rollNumber);
+student.setEmail(email);
+student.setMemberCode(memberCode);
+student.setFullName(fullName);
 
-                                pt2,
-                                pt2Comment,
+student.setExamDate(examDate);
+student.setExamNote(examNote);
 
-                                pt3,
-                                pt3Comment,
+student.setFinalExam(finalExam);
+student.setFinalComment(finalExamComment);
 
-                                project,
-                                projectComment,
+student.setFinalResit(finalExamResit);
+student.setFinalResitComment(finalExamResitComment);
 
-                                total,
-                                resultStatus,
-                                comment
-                        )
-                );
+student.setPractical(practicalExam);
+student.setPracticalComment(practicalExamComment);
+
+student.setPt1(pt1);
+student.setPt1Comment(pt1Comment);
+
+student.setPt2(pt2);
+student.setPt2Comment(pt2Comment);
+
+student.setPt3(pt3);
+student.setPt3Comment(pt3Comment);
+
+student.setProject(project);
+student.setProjectComment(projectComment);
+
+student.setTotal(total);
+student.setResult(resultStatus);
+student.setComment(comment);
+
+                students.add(student);
             }
 
-            result.put(
-                    className,
-                    students
-            );
+            result.put(className, students);
         }
+
+        // cache
+        latestClasses = result;
 
         return result;
     }
 
+    // ================= GENERATE FG =================
     public String generateFGContent(
             Map<String, List<StudentGrade>> data
     ) {
@@ -329,13 +348,12 @@ public class GradeService {
         return builder.toString();
     }
 
+    // ================= SAFE PARSE =================
     private double parseDouble(String value) {
 
         try {
 
-            if (value == null
-                    || value.isBlank()) {
-
+            if (value == null || value.isBlank()) {
                 return 0;
             }
 
@@ -347,169 +365,21 @@ public class GradeService {
         }
     }
 
+    // ================= ROUND =================
     private double round(double value) {
 
-        return Math.round(value * 100.0)
-                / 100.0;
+        return Math.round(value * 100.0) / 100.0;
     }
 
-    // ===== DTO =====
+    // ================= CACHE =================
 
-    public static class StudentGrade {
+    public void setLatestClasses(
+            Map<String, List<StudentGrade>> classes
+    ) {
+        this.latestClasses = classes;
+    }
 
-        private String rollNumber;
-        private String fullName;
-
-        private double finalExam;
-        private String finalComment;
-        private double finalResit;
-
-        private double practical;
-        private double practicalResit;
-
-        private double pt1;
-        private String pt1Comment;
-
-        private double pt2;
-        private String pt2Comment;
-
-        private double pt3;
-        private String pt3Comment;
-
-        private double project;
-        private String projectComment;
-
-        private double total;
-        private String result;
-
-        private String comment;
-
-        public StudentGrade(
-                String rollNumber,
-                String fullName,
-
-                double finalExam,
-                String finalComment,
-                double finalResit,
-
-                double practical,
-                double practicalResit,
-
-                double pt1,
-                String pt1Comment,
-
-                double pt2,
-                String pt2Comment,
-
-                double pt3,
-                String pt3Comment,
-
-                double project,
-                String projectComment,
-
-                double total,
-                String result,
-                String comment
-        ) {
-
-            this.rollNumber = rollNumber;
-            this.fullName = fullName;
-
-            this.finalExam = finalExam;
-            this.finalComment = finalComment;
-            this.finalResit = finalResit;
-
-            this.practical = practical;
-            this.practicalResit = practicalResit;
-
-            this.pt1 = pt1;
-            this.pt1Comment = pt1Comment;
-
-            this.pt2 = pt2;
-            this.pt2Comment = pt2Comment;
-
-            this.pt3 = pt3;
-            this.pt3Comment = pt3Comment;
-
-            this.project = project;
-            this.projectComment = projectComment;
-
-            this.total = total;
-            this.result = result;
-
-            this.comment = comment;
-        }
-
-        public String getRollNumber() {
-            return rollNumber;
-        }
-
-        public String getFullName() {
-            return fullName;
-        }
-
-        public double getFinalExam() {
-            return finalExam;
-        }
-
-        public String getFinalComment() {
-            return finalComment;
-        }
-
-        public double getFinalResit() {
-            return finalResit;
-        }
-
-        public double getPractical() {
-            return practical;
-        }
-
-        public double getPracticalResit() {
-            return practicalResit;
-        }
-
-        public double getPt1() {
-            return pt1;
-        }
-
-        public String getPt1Comment() {
-            return pt1Comment;
-        }
-
-        public double getPt2() {
-            return pt2;
-        }
-
-        public String getPt2Comment() {
-            return pt2Comment;
-        }
-
-        public double getPt3() {
-            return pt3;
-        }
-
-        public String getPt3Comment() {
-            return pt3Comment;
-        }
-
-        public double getProject() {
-            return project;
-        }
-
-        public String getProjectComment() {
-            return projectComment;
-        }
-
-        public double getTotal() {
-            return total;
-        }
-
-        public String getResult() {
-            return result;
-        }
-
-        public String getComment() {
-            return comment;
-        }
+    public Map<String, List<StudentGrade>> getLatestClasses() {
+        return latestClasses;
     }
 }
