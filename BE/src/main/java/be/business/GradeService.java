@@ -16,6 +16,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import be.business.dtos.StudentGrade;
+import be.business.dtos.StudentGradeRequest;
 
 @Service
 public class GradeService {
@@ -196,111 +197,46 @@ public class GradeService {
                 String projectComment =
                         dataMap.getOrDefault(21, "");
 
-                // ================= CALCULATE =================
+                // ================= BUILD REQUEST =================
 
-                double finalUsed =
-                        finalExamResit > 0
-                                ? finalExamResit
-                                : finalExam;
+                StudentGradeRequest request =
+                        new StudentGradeRequest();
 
-                double practicalUsed =
-                        practicalExam;
+                request.setClassName(className);
 
-                double progressAvg =
-                        (pt1 + pt2 + pt3) / 3.0;
+                request.setRollNumber(rollNumber);
+                request.setEmail(email);
+                request.setMemberCode(memberCode);
+                request.setFullName(fullName);
 
-                double total =
-                        finalUsed * 0.30
-                                + practicalUsed * 0.25
-                                + progressAvg * 0.15
-                                + project * 0.30;
+                request.setExamDate(examDate);
+                request.setExamNote(examNote);
 
-                total = round(total);
+                request.setFinalExam(finalExam);
+                request.setFinalExamComment(finalExamComment);
 
-                // ================= RESULT =================
+                request.setFinalExamResit(finalExamResit);
+                request.setFinalExamResitComment(finalExamResitComment);
 
-                String resultStatus;
-                String comment;
+                request.setPracticalExam(practicalExam);
+                request.setPracticalExamComment(practicalExamComment);
 
-                if (total >= 5
-                        && finalUsed >= 4
-                        && practicalUsed >= 4) {
+                request.setPt1(pt1);
+                request.setPt1Comment(pt1Comment);
 
-                    resultStatus = "PASS";
+                request.setPt2(pt2);
+                request.setPt2Comment(pt2Comment);
 
-                    comment =
-                            "Congratulations, you passed the course.";
+                request.setPt3(pt3);
+                request.setPt3Comment(pt3Comment);
 
-                } else {
+                request.setProject(project);
+                request.setProjectComment(projectComment);
 
-                    resultStatus = "FAIL";
+                // ================= BUILD STUDENT =================
 
-                    List<String> reasons =
-                            new ArrayList<>();
-
-                    if (total < 5) {
-
-                        reasons.add(
-                                "Your total score is below 5."
-                        );
-                    }
-
-                    if (finalUsed < 4) {
-
-                        reasons.add(
-                                "Your Final Exam score is below 4."
-                        );
-                    }
-
-                    if (practicalUsed < 4) {
-
-                        reasons.add(
-                                "Your Practical Exam score is below 4."
-                        );
-                    }
-
-                    comment =
-                            String.join(" ", reasons);
-                }
-
-                // ================= CREATE DTO =================
-
-                StudentGrade student = new StudentGrade();
-
-student.setClassName(className);
-
-student.setRollNumber(rollNumber);
-student.setEmail(email);
-student.setMemberCode(memberCode);
-student.setFullName(fullName);
-
-student.setExamDate(examDate);
-student.setExamNote(examNote);
-
-student.setFinalExam(finalExam);
-student.setFinalComment(finalExamComment);
-
-student.setFinalResit(finalExamResit);
-student.setFinalResitComment(finalExamResitComment);
-
-student.setPractical(practicalExam);
-student.setPracticalComment(practicalExamComment);
-
-student.setPt1(pt1);
-student.setPt1Comment(pt1Comment);
-
-student.setPt2(pt2);
-student.setPt2Comment(pt2Comment);
-
-student.setPt3(pt3);
-student.setPt3Comment(pt3Comment);
-
-student.setProject(project);
-student.setProjectComment(projectComment);
-
-student.setTotal(total);
-student.setResult(resultStatus);
-student.setComment(comment);
+                StudentGrade student =
+                        buildStudent(request);
 
                 students.add(student);
             }
@@ -312,6 +248,125 @@ student.setComment(comment);
         latestClasses = result;
 
         return result;
+    }
+
+    // ================= BUILD STUDENT =================
+    public StudentGrade buildStudent(
+            StudentGradeRequest request
+    ) {
+
+        double finalUsed =
+                request.getFinalExamResit() > 0
+                        ? request.getFinalExamResit()
+                        : request.getFinalExam();
+
+        double practicalUsed =
+                request.getPracticalExam();
+
+        double progressAvg =
+                (
+                        request.getPt1()
+                                + request.getPt2()
+                                + request.getPt3()
+                ) / 3.0;
+
+        double total =
+                finalUsed * 0.30
+                        + practicalUsed * 0.25
+                        + progressAvg * 0.15
+                        + request.getProject() * 0.30;
+
+        total = round(total);
+
+        String resultStatus;
+        String comment;
+
+        if (total >= 5
+                && finalUsed >= 4
+                && practicalUsed >= 4) {
+
+            resultStatus = "PASS";
+
+            comment =
+                    "Congratulations, you passed the course.";
+
+        } else {
+
+            resultStatus = "FAIL";
+
+            List<String> reasons =
+                    new ArrayList<>();
+
+            if (total < 5) {
+
+                reasons.add(
+                        "Your total score is below 5."
+                );
+            }
+
+            if (finalUsed < 4) {
+
+                reasons.add(
+                        "Your Final Exam score is below 4."
+                );
+            }
+
+            if (practicalUsed < 4) {
+
+                reasons.add(
+                        "Your Practical Exam score is below 4."
+                );
+            }
+
+            comment =
+                    String.join(" ", reasons);
+        }
+
+        StudentGrade student =
+                new StudentGrade();
+
+        student.setClassName(request.getClassName());
+
+        student.setRollNumber(request.getRollNumber());
+        student.setEmail(request.getEmail());
+        student.setMemberCode(request.getMemberCode());
+        student.setFullName(request.getFullName());
+
+        student.setExamDate(request.getExamDate());
+        student.setExamNote(request.getExamNote());
+
+        student.setFinalExam(request.getFinalExam());
+        student.setFinalComment(request.getFinalExamComment());
+
+        student.setFinalResit(request.getFinalExamResit());
+        student.setFinalResitComment(
+                request.getFinalExamResitComment()
+        );
+
+        student.setPractical(request.getPracticalExam());
+        student.setPracticalComment(
+                request.getPracticalExamComment()
+        );
+
+        student.setPt1(request.getPt1());
+        student.setPt1Comment(request.getPt1Comment());
+
+        student.setPt2(request.getPt2());
+        student.setPt2Comment(request.getPt2Comment());
+
+        student.setPt3(request.getPt3());
+        student.setPt3Comment(request.getPt3Comment());
+
+        student.setProject(request.getProject());
+        student.setProjectComment(
+                request.getProjectComment()
+        );
+
+        student.setTotal(total);
+        student.setResult(resultStatus);
+        student.setComment(comment);
+
+        return student;
     }
 
     // ================= GENERATE FG =================
