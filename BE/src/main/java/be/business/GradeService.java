@@ -15,9 +15,16 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import be.business.dtos.StudentGrade;
+import be.business.dtos.StudentGradeRequest;
+
 @Service
 public class GradeService {
 
+    // cache dữ liệu mới upload
+    private Map<String, List<StudentGrade>> latestClasses;
+
+    // ================= READ EXCEL =================
     public Map<String, List<StudentGrade>> processExcel(
             InputStream inputStream
     ) throws Exception {
@@ -39,9 +46,8 @@ public class GradeService {
         NodeList worksheets =
                 document.getElementsByTagName("Worksheet");
 
-        for (int s = 0;
-             s < worksheets.getLength();
-             s++) {
+        // ================= LOOP SHEET =================
+        for (int s = 0; s < worksheets.getLength(); s++) {
 
             Element worksheet =
                     (Element) worksheets.item(s);
@@ -57,9 +63,7 @@ public class GradeService {
                     worksheet.getElementsByTagName("Row");
 
             // bỏ header
-            for (int i = 1;
-                 i < rows.getLength();
-                 i++) {
+            for (int i = 1; i < rows.getLength(); i++) {
 
                 Element row =
                         (Element) rows.item(i);
@@ -72,9 +76,8 @@ public class GradeService {
 
                 int currentIndex = 1;
 
-                for (int j = 0;
-                     j < cellNodes.getLength();
-                     j++) {
+                // ================= READ CELL =================
+                for (int j = 0; j < cellNodes.getLength(); j++) {
 
                     Element cell =
                             (Element) cellNodes.item(j);
@@ -101,52 +104,64 @@ public class GradeService {
                                         .trim();
                     }
 
-                    dataMap.put(
-                            currentIndex,
-                            value
-                    );
+                    dataMap.put(currentIndex, value);
 
                     currentIndex++;
                 }
 
+                // ================= BASIC =================
+
                 String rollNumber =
                         dataMap.getOrDefault(2, "");
-
-                String fullName =
-                        dataMap.getOrDefault(5, "");
 
                 if (rollNumber.isBlank()) {
                     continue;
                 }
 
-                // ===== FINAL =====
+                String email =
+                        dataMap.getOrDefault(3, "");
+
+                String memberCode =
+                        dataMap.getOrDefault(4, "");
+
+                String fullName =
+                        dataMap.getOrDefault(5, "");
+
+                String examDate =
+                        dataMap.getOrDefault(6, "");
+
+                String examNote =
+                        dataMap.getOrDefault(7, "");
+
+                // ================= FINAL =================
 
                 double finalExam =
                         parseDouble(
                                 dataMap.getOrDefault(8, "0")
                         );
 
-                String finalComment =
+                String finalExamComment =
                         dataMap.getOrDefault(9, "");
 
-                double finalResit =
+                double finalExamResit =
                         parseDouble(
                                 dataMap.getOrDefault(10, "0")
                         );
 
-                // ===== PRACTICAL =====
+                String finalExamResitComment =
+                        dataMap.getOrDefault(11, "");
 
-                double practical =
+                // ================= PRACTICAL =================
+
+                double practicalExam =
                         parseDouble(
                                 dataMap.getOrDefault(12, "0")
                         );
 
-                double practicalResit =
-                        parseDouble(
-                                dataMap.getOrDefault(13, "0")
-                        );
+                String practicalExamComment =
+                        dataMap.getOrDefault(13, "");
 
-                // ===== PT =====
+                // ================= PT =================
 
                 double pt1 =
                         parseDouble(
@@ -172,7 +187,7 @@ public class GradeService {
                 String pt3Comment =
                         dataMap.getOrDefault(19, "");
 
-                // ===== PROJECT =====
+                // ================= PROJECT =================
 
                 double project =
                         parseDouble(
@@ -182,120 +197,179 @@ public class GradeService {
                 String projectComment =
                         dataMap.getOrDefault(21, "");
 
-                // ===== SCORE USED FOR CALCULATION =====
+                // ================= BUILD REQUEST =================
 
-                double finalUsed =
-                        finalResit > 0
-                                ? finalResit
-                                : finalExam;
+                StudentGradeRequest request =
+                        new StudentGradeRequest();
 
-                double practicalUsed =
-                        practicalResit > 0
-                                ? practicalResit
-                                : practical;
+                request.setClassName(className);
 
-                // ===== TOTAL =====
+                request.setRollNumber(rollNumber);
+                request.setEmail(email);
+                request.setMemberCode(memberCode);
+                request.setFullName(fullName);
 
-                double progressAvg =
-                        (pt1 + pt2 + pt3) / 3;
+                request.setExamDate(examDate);
+                request.setExamNote(examNote);
 
-                double total =
-                        finalUsed * 0.30
-                                + practicalUsed * 0.25
-                                + progressAvg * 0.15
-                                + project * 0.30;
+                request.setFinalExam(finalExam);
+                request.setFinalExamComment(finalExamComment);
 
-                total = round(total);
+                request.setFinalExamResit(finalExamResit);
+                request.setFinalExamResitComment(finalExamResitComment);
 
-                // ===== RESULT =====
+                request.setPracticalExam(practicalExam);
+                request.setPracticalExamComment(practicalExamComment);
 
-                String resultStatus;
-                String comment;
+                request.setPt1(pt1);
+                request.setPt1Comment(pt1Comment);
 
-                if (total >= 5
-                        && finalUsed >= 4
-                        && practicalUsed >= 4) {
+                request.setPt2(pt2);
+                request.setPt2Comment(pt2Comment);
 
-                    resultStatus = "PASS";
+                request.setPt3(pt3);
+                request.setPt3Comment(pt3Comment);
 
-                    comment =
-                            "Congratulations, you passed the course.";
+                request.setProject(project);
+                request.setProjectComment(projectComment);
 
-                } else {
+                // ================= BUILD STUDENT =================
 
-                    resultStatus = "FAIL";
+                StudentGrade student =
+                        buildStudent(request);
 
-                    List<String> reasons =
-                            new ArrayList<>();
-
-                    if (total < 5) {
-
-                        reasons.add(
-                                "Your total score is below 5."
-                        );
-                    }
-
-                    if (finalUsed < 4) {
-
-                        reasons.add(
-                                "Your Final Exam score is below 4."
-                        );
-                    }
-
-                    if (practicalUsed < 4) {
-
-                        reasons.add(
-                                "Your Practical Exam score is below 4."
-                        );
-                    }
-
-                    comment =
-                            String.join(
-                                    " ",
-                                    reasons
-                            );
-                }
-
-                students.add(
-                        new StudentGrade(
-                                rollNumber,
-                                fullName,
-
-                                finalExam,
-                                finalComment,
-                                finalResit,
-
-                                practical,
-                                practicalResit,
-
-                                pt1,
-                                pt1Comment,
-
-                                pt2,
-                                pt2Comment,
-
-                                pt3,
-                                pt3Comment,
-
-                                project,
-                                projectComment,
-
-                                total,
-                                resultStatus,
-                                comment
-                        )
-                );
+                students.add(student);
             }
 
-            result.put(
-                    className,
-                    students
-            );
+            result.put(className, students);
         }
+
+        // cache
+        latestClasses = result;
 
         return result;
     }
 
+    // ================= BUILD STUDENT =================
+    public StudentGrade buildStudent(
+            StudentGradeRequest request
+    ) {
+
+        double finalUsed =
+                request.getFinalExamResit() > 0
+                        ? request.getFinalExamResit()
+                        : request.getFinalExam();
+
+        double practicalUsed =
+                request.getPracticalExam();
+
+        double progressAvg =
+                (
+                        request.getPt1()
+                                + request.getPt2()
+                                + request.getPt3()
+                ) / 3.0;
+
+        double total =
+                finalUsed * 0.30
+                        + practicalUsed * 0.25
+                        + progressAvg * 0.15
+                        + request.getProject() * 0.30;
+
+        total = round(total);
+
+        String resultStatus;
+        String comment;
+
+        if (total >= 5
+                && finalUsed >= 4
+                && practicalUsed >= 4) {
+
+            resultStatus = "PASS";
+
+            comment =
+                    "Congratulations, you passed the course.";
+
+        } else {
+
+            resultStatus = "FAIL";
+
+            List<String> reasons =
+                    new ArrayList<>();
+
+            if (total < 5) {
+
+                reasons.add(
+                        "Your total score is below 5."
+                );
+            }
+
+            if (finalUsed < 4) {
+
+                reasons.add(
+                        "Your Final Exam score is below 4."
+                );
+            }
+
+            if (practicalUsed < 4) {
+
+                reasons.add(
+                        "Your Practical Exam score is below 4."
+                );
+            }
+
+            comment =
+                    String.join(" ", reasons);
+        }
+
+        StudentGrade student =
+                new StudentGrade();
+
+        student.setClassName(request.getClassName());
+
+        student.setRollNumber(request.getRollNumber());
+        student.setEmail(request.getEmail());
+        student.setMemberCode(request.getMemberCode());
+        student.setFullName(request.getFullName());
+
+        student.setExamDate(request.getExamDate());
+        student.setExamNote(request.getExamNote());
+
+        student.setFinalExam(request.getFinalExam());
+        student.setFinalComment(request.getFinalExamComment());
+
+        student.setFinalResit(request.getFinalExamResit());
+        student.setFinalResitComment(
+                request.getFinalExamResitComment()
+        );
+
+        student.setPractical(request.getPracticalExam());
+        student.setPracticalComment(
+                request.getPracticalExamComment()
+        );
+
+        student.setPt1(request.getPt1());
+        student.setPt1Comment(request.getPt1Comment());
+
+        student.setPt2(request.getPt2());
+        student.setPt2Comment(request.getPt2Comment());
+
+        student.setPt3(request.getPt3());
+        student.setPt3Comment(request.getPt3Comment());
+
+        student.setProject(request.getProject());
+        student.setProjectComment(
+                request.getProjectComment()
+        );
+
+        student.setTotal(total);
+        student.setResult(resultStatus);
+        student.setComment(comment);
+
+        return student;
+    }
+
+    // ================= GENERATE FG =================
     public String generateFGContent(
             Map<String, List<StudentGrade>> data
     ) {
@@ -329,13 +403,12 @@ public class GradeService {
         return builder.toString();
     }
 
+    // ================= SAFE PARSE =================
     private double parseDouble(String value) {
 
         try {
 
-            if (value == null
-                    || value.isBlank()) {
-
+            if (value == null || value.isBlank()) {
                 return 0;
             }
 
@@ -347,169 +420,21 @@ public class GradeService {
         }
     }
 
+    // ================= ROUND =================
     private double round(double value) {
 
-        return Math.round(value * 100.0)
-                / 100.0;
+        return Math.round(value * 100.0) / 100.0;
     }
 
-    // ===== DTO =====
+    // ================= CACHE =================
 
-    public static class StudentGrade {
+    public void setLatestClasses(
+            Map<String, List<StudentGrade>> classes
+    ) {
+        this.latestClasses = classes;
+    }
 
-        private String rollNumber;
-        private String fullName;
-
-        private double finalExam;
-        private String finalComment;
-        private double finalResit;
-
-        private double practical;
-        private double practicalResit;
-
-        private double pt1;
-        private String pt1Comment;
-
-        private double pt2;
-        private String pt2Comment;
-
-        private double pt3;
-        private String pt3Comment;
-
-        private double project;
-        private String projectComment;
-
-        private double total;
-        private String result;
-
-        private String comment;
-
-        public StudentGrade(
-                String rollNumber,
-                String fullName,
-
-                double finalExam,
-                String finalComment,
-                double finalResit,
-
-                double practical,
-                double practicalResit,
-
-                double pt1,
-                String pt1Comment,
-
-                double pt2,
-                String pt2Comment,
-
-                double pt3,
-                String pt3Comment,
-
-                double project,
-                String projectComment,
-
-                double total,
-                String result,
-                String comment
-        ) {
-
-            this.rollNumber = rollNumber;
-            this.fullName = fullName;
-
-            this.finalExam = finalExam;
-            this.finalComment = finalComment;
-            this.finalResit = finalResit;
-
-            this.practical = practical;
-            this.practicalResit = practicalResit;
-
-            this.pt1 = pt1;
-            this.pt1Comment = pt1Comment;
-
-            this.pt2 = pt2;
-            this.pt2Comment = pt2Comment;
-
-            this.pt3 = pt3;
-            this.pt3Comment = pt3Comment;
-
-            this.project = project;
-            this.projectComment = projectComment;
-
-            this.total = total;
-            this.result = result;
-
-            this.comment = comment;
-        }
-
-        public String getRollNumber() {
-            return rollNumber;
-        }
-
-        public String getFullName() {
-            return fullName;
-        }
-
-        public double getFinalExam() {
-            return finalExam;
-        }
-
-        public String getFinalComment() {
-            return finalComment;
-        }
-
-        public double getFinalResit() {
-            return finalResit;
-        }
-
-        public double getPractical() {
-            return practical;
-        }
-
-        public double getPracticalResit() {
-            return practicalResit;
-        }
-
-        public double getPt1() {
-            return pt1;
-        }
-
-        public String getPt1Comment() {
-            return pt1Comment;
-        }
-
-        public double getPt2() {
-            return pt2;
-        }
-
-        public String getPt2Comment() {
-            return pt2Comment;
-        }
-
-        public double getPt3() {
-            return pt3;
-        }
-
-        public String getPt3Comment() {
-            return pt3Comment;
-        }
-
-        public double getProject() {
-            return project;
-        }
-
-        public String getProjectComment() {
-            return projectComment;
-        }
-
-        public double getTotal() {
-            return total;
-        }
-
-        public String getResult() {
-            return result;
-        }
-
-        public String getComment() {
-            return comment;
-        }
+    public Map<String, List<StudentGrade>> getLatestClasses() {
+        return latestClasses;
     }
 }
