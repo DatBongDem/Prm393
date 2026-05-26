@@ -1,8 +1,11 @@
 package be.business.dtos;
 
+import java.util.List;
+
 public class StudentGrade {
 
     // ================= BASIC =================
+    private String subject;
     private String className;
     private String rollNumber;
     private String email;
@@ -14,40 +17,49 @@ public class StudentGrade {
     private String examNote;
 
     // ================= FINAL =================
-    private double finalExam;
+    private Double finalExam;
     private String finalComment;
 
-    private double finalResit;
+    private Double finalResit;
     private String finalResitComment;
 
     // ================= PRACTICAL =================
-    private double practical;
+    private Double practical;
     private String practicalComment;
 
     // ================= PT =================
-    private double pt1;
+    private Double pt1;
     private String pt1Comment;
 
-    private double pt2;
+    private Double pt2;
     private String pt2Comment;
 
-    private double pt3;
+    private Double pt3;
     private String pt3Comment;
 
     // ================= PROJECT =================
-    private double project;
+    private Double project;
     private String projectComment;
 
     // ================= CALCULATED =================
-    private double total;
+    private Double total;
     private String result;
     private String comment;
+    private List<FgGradeComponent> gradeComponents;
 
     // ================= CONSTRUCTOR =================
     public StudentGrade() {
     }
 
     // ================= GETTER / SETTER =================
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public void setSubject(String subject) {
+        this.subject = subject;
+    }
 
     public String getClassName() {
         return className;
@@ -105,11 +117,11 @@ public class StudentGrade {
         this.examNote = examNote;
     }
 
-    public double getFinalExam() {
+    public Double getFinalExam() {
         return finalExam;
     }
 
-    public void setFinalExam(double finalExam) {
+    public void setFinalExam(Double finalExam) {
         this.finalExam = finalExam;
     }
 
@@ -121,11 +133,11 @@ public class StudentGrade {
         this.finalComment = finalComment;
     }
 
-    public double getFinalResit() {
+    public Double getFinalResit() {
         return finalResit;
     }
 
-    public void setFinalResit(double finalResit) {
+    public void setFinalResit(Double finalResit) {
         this.finalResit = finalResit;
     }
 
@@ -137,11 +149,11 @@ public class StudentGrade {
         this.finalResitComment = finalResitComment;
     }
 
-    public double getPractical() {
+    public Double getPractical() {
         return practical;
     }
 
-    public void setPractical(double practical) {
+    public void setPractical(Double practical) {
         this.practical = practical;
     }
 
@@ -153,11 +165,11 @@ public class StudentGrade {
         this.practicalComment = practicalComment;
     }
 
-    public double getPt1() {
+    public Double getPt1() {
         return pt1;
     }
 
-    public void setPt1(double pt1) {
+    public void setPt1(Double pt1) {
         this.pt1 = pt1;
     }
 
@@ -169,11 +181,11 @@ public class StudentGrade {
         this.pt1Comment = pt1Comment;
     }
 
-    public double getPt2() {
+    public Double getPt2() {
         return pt2;
     }
 
-    public void setPt2(double pt2) {
+    public void setPt2(Double pt2) {
         this.pt2 = pt2;
     }
 
@@ -185,11 +197,11 @@ public class StudentGrade {
         this.pt2Comment = pt2Comment;
     }
 
-    public double getPt3() {
+    public Double getPt3() {
         return pt3;
     }
 
-    public void setPt3(double pt3) {
+    public void setPt3(Double pt3) {
         this.pt3 = pt3;
     }
 
@@ -201,11 +213,11 @@ public class StudentGrade {
         this.pt3Comment = pt3Comment;
     }
 
-    public double getProject() {
+    public Double getProject() {
         return project;
     }
 
-    public void setProject(double project) {
+    public void setProject(Double project) {
         this.project = project;
     }
 
@@ -217,11 +229,11 @@ public class StudentGrade {
         this.projectComment = projectComment;
     }
 
-    public double getTotal() {
+    public Double getTotal() {
         return total;
     }
 
-    public void setTotal(double total) {
+    public void setTotal(Double total) {
         this.total = total;
     }
 
@@ -239,5 +251,15 @@ public class StudentGrade {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public List<FgGradeComponent> getGradeComponents() {
+        return gradeComponents;
+    }
+
+    public void setGradeComponents(
+            List<FgGradeComponent> gradeComponents
+    ) {
+        this.gradeComponents = gradeComponents;
     }
 }

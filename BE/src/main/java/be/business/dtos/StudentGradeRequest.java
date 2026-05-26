@@ -2,6 +2,7 @@ package be.business.dtos;
 
 public class StudentGradeRequest {
 
+    private String subject;
     private String className;
     private String rollNumber;
     private String email;
@@ -11,28 +12,36 @@ public class StudentGradeRequest {
     private String examDate;
     private String examNote;
 
-    private double finalExam;
+    private Double finalExam;
     private String finalExamComment;
 
-    private double finalExamResit;
+    private Double finalExamResit;
     private String finalExamResitComment;
 
-    private double practicalExam;
+    private Double practicalExam;
     private String practicalExamComment;
 
-    private double pt1;
+    private Double pt1;
     private String pt1Comment;
 
-    private double pt2;
+    private Double pt2;
     private String pt2Comment;
 
-    private double pt3;
+    private Double pt3;
     private String pt3Comment;
 
-    private double project;
+    private Double project;
     private String projectComment;
 
     // ===== GETTER SETTER =====
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public void setSubject(String subject) {
+        this.subject = subject;
+    }
 
     public String getClassName() {
         return className;
@@ -90,11 +99,11 @@ public class StudentGradeRequest {
         this.examNote = examNote;
     }
 
-    public double getFinalExam() {
+    public Double getFinalExam() {
         return finalExam;
     }
 
-    public void setFinalExam(double finalExam) {
+    public void setFinalExam(Double finalExam) {
         this.finalExam = finalExam;
     }
 
@@ -106,11 +115,11 @@ public class StudentGradeRequest {
         this.finalExamComment = finalExamComment;
     }
 
-    public double getFinalExamResit() {
+    public Double getFinalExamResit() {
         return finalExamResit;
     }
 
-    public void setFinalExamResit(double finalExamResit) {
+    public void setFinalExamResit(Double finalExamResit) {
         this.finalExamResit = finalExamResit;
     }
 
@@ -122,11 +131,11 @@ public class StudentGradeRequest {
         this.finalExamResitComment = finalExamResitComment;
     }
 
-    public double getPracticalExam() {
+    public Double getPracticalExam() {
         return practicalExam;
     }
 
-    public void setPracticalExam(double practicalExam) {
+    public void setPracticalExam(Double practicalExam) {
         this.practicalExam = practicalExam;
     }
 
@@ -138,11 +147,11 @@ public class StudentGradeRequest {
         this.practicalExamComment = practicalExamComment;
     }
 
-    public double getPt1() {
+    public Double getPt1() {
         return pt1;
     }
 
-    public void setPt1(double pt1) {
+    public void setPt1(Double pt1) {
         this.pt1 = pt1;
     }
 
@@ -154,11 +163,11 @@ public class StudentGradeRequest {
         this.pt1Comment = pt1Comment;
     }
 
-    public double getPt2() {
+    public Double getPt2() {
         return pt2;
     }
 
-    public void setPt2(double pt2) {
+    public void setPt2(Double pt2) {
         this.pt2 = pt2;
     }
 
@@ -170,11 +179,11 @@ public class StudentGradeRequest {
         this.pt2Comment = pt2Comment;
     }
 
-    public double getPt3() {
+    public Double getPt3() {
         return pt3;
     }
 
-    public void setPt3(double pt3) {
+    public void setPt3(Double pt3) {
         this.pt3 = pt3;
     }
 
@@ -186,11 +195,11 @@ public class StudentGradeRequest {
         this.pt3Comment = pt3Comment;
     }
 
-    public double getProject() {
+    public Double getProject() {
         return project;
     }
 
-    public void setProject(double project) {
+    public void setProject(Double project) {
         this.project = project;
     }
 

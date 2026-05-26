@@ -112,6 +112,19 @@ class GradeDetailDialog {
             ]),
           ]),
           const SizedBox(height: 16),
+          if (s.gradeComponents.isNotEmpty) ...[
+            _section("FG Components", [
+              _twoColumnGrid(
+                s.gradeComponents
+                    .map(
+                      (grade) =>
+                          _scoreRowSingle(grade.component, grade.grade),
+                    )
+                    .toList(),
+              ),
+            ]),
+            const SizedBox(height: 16),
+          ],
           _divider(),
           const SizedBox(height: 16),
           _section("Kết Quả Cuối Cùng", [
@@ -212,7 +225,7 @@ class GradeDetailDialog {
 
   static Widget _scoreRow(
     String scoreLabel,
-    double scoreValue,
+    double? scoreValue,
     String commentLabel,
     String commentValue,
   ) {
@@ -239,7 +252,7 @@ class GradeDetailDialog {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        scoreValue == 0 ? "-" : scoreValue.toStringAsFixed(1),
+                        _formatScore(scoreValue),
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -289,7 +302,7 @@ class GradeDetailDialog {
             ),
             const SizedBox(height: 4),
             Text(
-              scoreValue == 0 ? "-" : scoreValue.toStringAsFixed(1),
+              _formatScore(scoreValue),
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ],
@@ -298,7 +311,7 @@ class GradeDetailDialog {
     }
   }
 
-  static Widget _scoreRowSingle(String scoreLabel, double scoreValue) {
+  static Widget _scoreRowSingle(String scoreLabel, double? scoreValue) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
@@ -310,7 +323,7 @@ class GradeDetailDialog {
           ),
           const SizedBox(height: 4),
           Text(
-            scoreValue == 0 ? "-" : scoreValue.toStringAsFixed(1),
+            _formatScore(scoreValue),
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
           ),
         ],
@@ -365,6 +378,11 @@ class GradeDetailDialog {
 
   static String _formatResult(String result) {
     return result.isNotEmpty ? result : "-";
+  }
+
+  static String _formatScore(double? value) {
+    if (value == null) return "-";
+    return value.toStringAsFixed(1);
   }
 
   // ================= ACTION BUTTONS =================

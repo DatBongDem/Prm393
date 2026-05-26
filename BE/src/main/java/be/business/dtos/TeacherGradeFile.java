@@ -8,16 +8,16 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class TeacherGradeFile {
 
     @JsonProperty("Version")
-    private String version = "1.1";
+    private String version;
 
     @JsonProperty("Semester")
-    private String semester = "";
+    private String semester;
 
     @JsonProperty("Login")
-    private String login = "";
+    private String login;
 
     @JsonProperty("Password")
-    private String password = "";
+    private String password;
 
     @JsonProperty("SubjectClassGrades")
     private List<FgSubjectClassGrade> subjectClassGrades = new ArrayList<>();

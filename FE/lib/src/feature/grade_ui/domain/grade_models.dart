@@ -42,31 +42,33 @@ class StudentGrade {
     required this.total,
     required this.result,
     required this.comment,
+    required this.gradeComponents,
   });
   final String rollNumber;
   final String fullName;
-  final double finalExam;
+  final double? finalExam;
   final String finalComment;
-  final double finalResit;
+  final double? finalResit;
 
-  final double practical;
-  final double practicalResit;
+  final double? practical;
+  final double? practicalResit;
 
-  final double pt1;
+  final double? pt1;
   final String pt1Comment;
 
-  final double pt2;
+  final double? pt2;
   final String pt2Comment;
 
-  final double pt3;
+  final double? pt3;
   final String pt3Comment;
 
-  final double project;
+  final double? project;
   final String projectComment;
 
-  final double total;
+  final double? total;
   final String result;
   final String comment;
+  final List<GradeComponent> gradeComponents;
   factory StudentGrade.fromJson(Map<String, dynamic> json) {
     return StudentGrade(
       rollNumber: _asString(json['rollNumber']),
@@ -87,6 +89,9 @@ class StudentGrade {
       total: _asDouble(json['total']),
       result: _asString(json['result']),
       comment: _asString(json['comment']),
+      gradeComponents: (json['gradeComponents'] as List<dynamic>? ?? [])
+          .map((e) => GradeComponent.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -94,8 +99,22 @@ class StudentGrade {
 
   static String _asString(dynamic value) => value?.toString() ?? '';
 
-  static double _asDouble(dynamic value) {
+  static double? _asDouble(dynamic value) {
     if (value is num) return value.toDouble();
-    return double.tryParse(value?.toString() ?? '') ?? 0;
+    return double.tryParse(value?.toString() ?? '');
+  }
+}
+
+class GradeComponent {
+  GradeComponent({required this.component, required this.grade});
+
+  final String component;
+  final double? grade;
+
+  factory GradeComponent.fromJson(Map<String, dynamic> json) {
+    return GradeComponent(
+      component: StudentGrade._asString(json['component'] ?? json['Component']),
+      grade: StudentGrade._asDouble(json['grade'] ?? json['Grade']),
+    );
   }
 }

@@ -8,10 +8,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class FgStudent implements Comparable<FgStudent> {
 
     @JsonProperty("Roll")
-    private String roll = "";
+    private String roll;
 
     @JsonProperty("Name")
-    private String name = "";
+    private String name;
 
     @JsonProperty("Grades")
     private List<FgGradeComponent> grades = new ArrayList<>();
