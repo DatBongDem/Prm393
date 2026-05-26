@@ -55,6 +55,8 @@ public class StudentController {
             classes.get(className)
                     .add(student);
 
+            gradeService.refreshTeacherGradeFromClasses();
+
             return ResponseEntity.ok(student);
 
         } catch (Exception e) {
@@ -106,6 +108,8 @@ public class StudentController {
 
                         students.set(i, updated);
 
+                        gradeService.refreshTeacherGradeFromClasses();
+
                         return ResponseEntity.ok(
                                 updated
                         );
@@ -155,6 +159,8 @@ public class StudentController {
                         );
 
                 if (removed) {
+
+                    gradeService.refreshTeacherGradeFromClasses();
 
                     return ResponseEntity.ok(
                             "Deleted successfully"
