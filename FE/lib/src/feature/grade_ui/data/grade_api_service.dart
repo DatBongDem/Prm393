@@ -52,6 +52,52 @@ class GradeApiService {
     return GradeUploadResponse.fromJson(jsonMap);
   }
 
+  Future<StudentGrade> createStudent(StudentGradeRequest request) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/student'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(request.toJson()),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Tạo sinh viên thất bại: ${response.body}');
+    }
+
+    return StudentGrade.fromJson(jsonDecode(response.body));
+  }
+
+  Future<StudentGrade> updateStudent(
+      String rollNumber, StudentGradeRequest request) async {
+    final response = await _client.put(
+      Uri.parse('$baseUrl/student/$rollNumber'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(request.toJson()),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Cập nhật sinh viên thất bại: ${response.body}');
+    }
+
+    return StudentGrade.fromJson(jsonDecode(response.body));
+  }
+
+  Future<void> deleteStudent(String rollNumber) async {
+    final response = await _client.delete(
+      Uri.parse('$baseUrl/student/$rollNumber'),
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Xoá sinh viên thất bại: ${response.body}');
+    }
+  }
+
   void dispose() {
     _client.close();
   }

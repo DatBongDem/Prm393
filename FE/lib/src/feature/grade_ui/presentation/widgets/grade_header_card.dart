@@ -4,6 +4,7 @@ class GradeHeaderCard extends StatelessWidget {
   const GradeHeaderCard({
     super.key,
     required this.onImportPressed,
+    required this.onCreatePressed,
     required this.onExportPressed,
     required this.classOptions,
     required this.selectedClass,
@@ -11,6 +12,7 @@ class GradeHeaderCard extends StatelessWidget {
     required this.isImporting,
   });
   final VoidCallback onImportPressed;
+  final VoidCallback? onCreatePressed;
   final VoidCallback? onExportPressed;
   final List<String> classOptions;
   final String? selectedClass;
@@ -52,6 +54,14 @@ class GradeHeaderCard extends StatelessWidget {
                   style: FilledButton.styleFrom(backgroundColor: Colors.green),
                   icon: const Icon(Icons.download_outlined),
                   label: const Text("Export File"),
+                ),
+                const SizedBox(width: 8),
+
+                FilledButton.icon(
+                  onPressed: onCreatePressed,
+                  style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
+                  icon: const Icon(Icons.person_add_alt_1_outlined),
+                  label: const Text("Add Student"),
                 ),
               ],
             ),

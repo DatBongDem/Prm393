@@ -2,6 +2,7 @@ import 'package:fe/src/feature/grade_ui/data/grade_api_service.dart';
 import 'package:fe/src/feature/grade_ui/domain/grade_models.dart';
 import 'package:fe/src/feature/grade_ui/presentation/widgets/ai_pannel_card.dart';
 import 'package:fe/src/feature/grade_ui/presentation/widgets/empty_state_card.dart';
+import 'package:fe/src/feature/grade_ui/presentation/widgets/grade_form_dialog.dart';
 import 'package:fe/src/feature/grade_ui/presentation/widgets/grade_header_card.dart';
 import 'package:fe/src/feature/grade_ui/presentation/widgets/grade_table_card.dart';
 import 'package:file_picker/file_picker.dart';
@@ -77,10 +78,108 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
     ).showSnackBar(const SnackBar(content: Text("Exporting file...")));
   }
 
+  Future<void> _createStudent() async {
+    if (_selectedClass == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select or import a class first.")),
+      );
+      return;
+    }
+
+    final request = await GradeFormDialog.show(
+      context,
+      className: _selectedClass!,
+    );
+
+    if (request != null) {
+      try {
+        final newStudent = await _api.createStudent(request);
+        setState(() {
+          _rows.add(newStudent);
+          _apiCache[_selectedClass!] = _rows;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Student created successfully!")),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to create student: $e")),
+        );
+      }
+    }
+  }
+
+  Future<void> _editStudent(StudentGrade student) async {
+    final request = await GradeFormDialog.show(
+      context,
+      className: _selectedClass!,
+      student: student,
+    );
+
+    if (request != null) {
+      try {
+        final updatedStudent = await _api.updateStudent(student.rollNumber, request);
+        setState(() {
+          final index = _rows.indexWhere((s) => s.rollNumber == student.rollNumber);
+          if (index != -1) {
+            _rows[index] = updatedStudent;
+            _apiCache[_selectedClass!] = _rows;
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Student updated successfully!")),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to update student: $e")),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteStudent(StudentGrade student) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Confirm Delete"),
+        content: Text("Are you sure you want to delete student ${student.fullName}?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _api.deleteStudent(student.rollNumber);
+        setState(() {
+          _rows.removeWhere((s) => s.rollNumber == student.rollNumber);
+          _apiCache[_selectedClass!] = _rows;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Student deleted successfully!")),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to delete student: $e")),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final mainContent = _showTable
-        ? GradeTableCard(className: _selectedClass ?? '', rows: _rows)
+        ? GradeTableCard(
+            className: _selectedClass ?? '',
+            rows: _rows,
+            onEdit: _editStudent,
+            onDelete: _deleteStudent,
+          )
         : const EmptyStateCard();
     return Scaffold(
       body: SafeArea(
@@ -91,6 +190,7 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
               GradeHeaderCard(
                 isImporting: _isImporting,
                 onImportPressed: _importFile,
+                onCreatePressed: _createStudent,
                 onExportPressed: _showTable ? _exportFile : null,
                 classOptions: _classOptions,
                 selectedClass: _selectedClass,

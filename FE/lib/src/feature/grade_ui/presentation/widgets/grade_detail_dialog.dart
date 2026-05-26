@@ -54,8 +54,9 @@ class GradeDetailDialog {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _section("Thông Tin Cá Nhân", [
-            _infoRow("Roll Number", s.rollNumber, "Full Name", s.fullName),
-            _infoRow("Email", "-", "", ""),
+            _infoRow("Class", s.className, "Roll Number", s.rollNumber),
+            _infoRow("Full Name", s.fullName, "Email", s.email.isEmpty ? "-" : s.email),
+            _infoRow("Member Code", s.memberCode.isEmpty ? "-" : s.memberCode, "Exam Date", s.examDate.isEmpty ? "-" : s.examDate),
           ]),
           const SizedBox(height: 16),
           _section("Kỳ Thi Cuối Kỳ", [
@@ -63,14 +64,14 @@ class GradeDetailDialog {
               _scoreRowSingle("Final Exam", s.finalExam),
               _scoreRowSingle("Final Exam Resit", s.finalResit),
               _singleFieldRow("Final Exam Comment", s.finalComment),
-              _singleFieldRow("Final Resit Comment", "-"),
+              _singleFieldRow("Final Resit Comment", "-"), // Final Resit Comment field doesn't exist in FE model yet
             ]),
           ]),
           const SizedBox(height: 16),
           _section("Kỳ Thi Thực Hành", [
             _twoColumnGrid([
               _scoreRowSingle("Practical Exam", s.practical),
-              _singleFieldRow("Practical Exam Resit", "-"),
+              _scoreRowSingle("Practical Exam Resit", s.practicalResit),
               _singleFieldRow("Practical Exam Comment", "-"),
               _singleFieldRow("Practical Exam Resit Comment", "-"),
             ]),

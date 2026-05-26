@@ -24,8 +24,13 @@ class GradeUploadResponse {
 
 class StudentGrade {
   StudentGrade({
+    required this.className,
     required this.rollNumber,
+    required this.email,
+    required this.memberCode,
     required this.fullName,
+    required this.examDate,
+    required this.examNote,
     required this.finalExam,
     required this.finalComment,
     required this.finalResit,
@@ -44,8 +49,14 @@ class StudentGrade {
     required this.comment,
     required this.gradeComponents,
   });
+  final String className;
   final String rollNumber;
+  final String email;
+  final String memberCode;
   final String fullName;
+  final String examDate;
+  final String examNote;
+
   final double? finalExam;
   final String finalComment;
   final double? finalResit;
@@ -71,8 +82,13 @@ class StudentGrade {
   final List<GradeComponent> gradeComponents;
   factory StudentGrade.fromJson(Map<String, dynamic> json) {
     return StudentGrade(
+      className: _asString(json['className']),
       rollNumber: _asString(json['rollNumber']),
+      email: _asString(json['email']),
+      memberCode: _asString(json['memberCode']),
       fullName: _asString(json['fullName']),
+      examDate: _asString(json['examDate']),
+      examNote: _asString(json['examNote']),
       finalExam: _asDouble(json['finalExam']),
       finalComment: _asString(json['finalComment']),
       finalResit: _asDouble(json['finalResit']),
@@ -116,5 +132,79 @@ class GradeComponent {
       component: StudentGrade._asString(json['component'] ?? json['Component']),
       grade: StudentGrade._asDouble(json['grade'] ?? json['Grade']),
     );
+  }
+}
+
+class StudentGradeRequest {
+  StudentGradeRequest({
+    required this.className,
+    required this.rollNumber,
+    required this.email,
+    required this.memberCode,
+    required this.fullName,
+    this.examDate = '',
+    this.examNote = '',
+    this.finalExam = 0,
+    this.finalExamComment = '',
+    this.finalExamResit = 0,
+    this.finalExamResitComment = '',
+    this.practicalExam = 0,
+    this.practicalExamComment = '',
+    this.pt1 = 0,
+    this.pt1Comment = '',
+    this.pt2 = 0,
+    this.pt2Comment = '',
+    this.pt3 = 0,
+    this.pt3Comment = '',
+    this.project = 0,
+    this.projectComment = '',
+  });
+
+  final String className;
+  final String rollNumber;
+  final String email;
+  final String memberCode;
+  final String fullName;
+  final String examDate;
+  final String examNote;
+  final double finalExam;
+  final String finalExamComment;
+  final double finalExamResit;
+  final String finalExamResitComment;
+  final double practicalExam;
+  final String practicalExamComment;
+  final double pt1;
+  final String pt1Comment;
+  final double pt2;
+  final String pt2Comment;
+  final double pt3;
+  final String pt3Comment;
+  final double project;
+  final String projectComment;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'className': className,
+      'rollNumber': rollNumber,
+      'email': email,
+      'memberCode': memberCode,
+      'fullName': fullName,
+      'examDate': examDate,
+      'examNote': examNote,
+      'finalExam': finalExam,
+      'finalExamComment': finalExamComment,
+      'finalExamResit': finalExamResit,
+      'finalExamResitComment': finalExamResitComment,
+      'practicalExam': practicalExam,
+      'practicalExamComment': practicalExamComment,
+      'pt1': pt1,
+      'pt1Comment': pt1Comment,
+      'pt2': pt2,
+      'pt2Comment': pt2Comment,
+      'pt3': pt3,
+      'pt3Comment': pt3Comment,
+      'project': project,
+      'projectComment': projectComment,
+    };
   }
 }
