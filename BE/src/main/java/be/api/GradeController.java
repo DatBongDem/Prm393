@@ -28,13 +28,14 @@ import be.business.dtos.StudentGrade;
 @RequestMapping("/grade")
 public class GradeController {
 
+    private static final MediaType XLSX_MEDIA_TYPE =
+            MediaType.parseMediaType(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            );
+
     @Autowired
     private GradeService gradeService;
 
-    // cache FG
-    private String latestFGContent;
-
-    // ================= UPLOAD EXCEL =================
     @PostMapping(
             value = "/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
@@ -44,117 +45,245 @@ public class GradeController {
     ) {
 
         try {
-
             if (file.isEmpty()) {
-
                 return ResponseEntity.badRequest()
                         .body("File is empty");
             }
 
-            // đọc excel
             Map<String, List<StudentGrade>> classes =
                     gradeService.processExcel(
-                            file.getInputStream()
+                            file.getInputStream(),
+                            file.getOriginalFilename()
                     );
-
-            // cache
-            gradeService.setLatestClasses(classes);
-
-            // generate FG
-            latestFGContent =
-                    gradeService.generateFGContent(classes);
 
             Map<String, Object> response =
                     new HashMap<>();
 
-            response.put("message", "Upload success");
+            response.put("message", "Upload Excel success");
             response.put("classes", classes);
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-
             e.printStackTrace();
 
             return ResponseEntity.badRequest()
                     .body("ERROR: " + e.getMessage());
         }
     }
-    
-    // ================= EXPORT FG =================
-    @GetMapping("/export-fg")
-    public ResponseEntity<?> exportFG() {
+
+    @PostMapping(
+            value = "/upload-fg",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<?> uploadFg(
+            @RequestPart("file") MultipartFile file
+    ) {
 
         try {
-
-            if (latestFGContent == null
-                    || latestFGContent.isBlank()) {
-
+            if (file.isEmpty()) {
                 return ResponseEntity.badRequest()
-                        .body("No FG file available");
+                        .body("File is empty");
             }
 
+            Map<String, List<StudentGrade>> classes =
+                    gradeService.processFg(
+                            file.getInputStream(),
+                            file.getOriginalFilename()
+                    );
+
+            Map<String, Object> response =
+                    new HashMap<>();
+
+            response.put("message", "Upload FG success");
+            response.put("classes", classes);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            return ResponseEntity.badRequest()
+                    .body("ERROR: " + e.getMessage());
+        }
+    }
+
+    @PostMapping(
+            value = "/excel-to-fg",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<?> convertExcelToFg(
+            @RequestPart("file") MultipartFile file
+    ) {
+
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body("File is empty");
+            }
+
+            Map<String, List<StudentGrade>> classes =
+                    gradeService.processExcel(
+                            file.getInputStream(),
+                            file.getOriginalFilename()
+                    );
+
             byte[] fgBytes =
-                    latestFGContent.getBytes(
-                            StandardCharsets.UTF_8
+                    gradeService.generateFGContent(classes)
+                            .getBytes(StandardCharsets.UTF_8);
+
+            return ResponseEntity.ok()
+                    .header(
+                            HttpHeaders.CONTENT_DISPOSITION,
+                            attachment(gradeService.getLatestFgFileName())
+                    )
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(fgBytes);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            return ResponseEntity.badRequest()
+                    .body("ERROR: " + e.getMessage());
+        }
+    }
+
+    @PostMapping(
+            value = "/fg-to-excel",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<?> convertFgToExcel(
+            @RequestPart("file") MultipartFile file
+    ) {
+
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body("File is empty");
+            }
+
+            Map<String, List<StudentGrade>> classes =
+                    gradeService.processFg(
+                            file.getInputStream(),
+                            file.getOriginalFilename()
                     );
 
             return ResponseEntity.ok()
                     .header(
                             HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=grade.fg"
+                            attachment(gradeService.getLatestExcelFileName())
                     )
-                    .contentType(
-                            MediaType.APPLICATION_OCTET_STREAM
+                    .contentType(XLSX_MEDIA_TYPE)
+                    .body(buildExcelBytes(classes));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            return ResponseEntity.badRequest()
+                    .body("ERROR: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/export-fg")
+    public ResponseEntity<?> exportFG() {
+
+        try {
+            Map<String, List<StudentGrade>> classes =
+                    gradeService.getLatestClasses();
+
+            if (classes == null || classes.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body("No FG file available");
+            }
+
+            byte[] fgBytes =
+                    gradeService.generateFGContent(classes)
+                            .getBytes(StandardCharsets.UTF_8);
+
+            return ResponseEntity.ok()
+                    .header(
+                            HttpHeaders.CONTENT_DISPOSITION,
+                            attachment(gradeService.getLatestFgFileName())
                     )
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(fgBytes);
 
         } catch (Exception e) {
-
             e.printStackTrace();
 
             return ResponseEntity.badRequest()
                     .body(
                             ("ERROR: " + e.getMessage())
-                                    .getBytes()
+                                    .getBytes(StandardCharsets.UTF_8)
                     );
         }
     }
 
-    // ================= EXPORT EXCEL =================
     @GetMapping("/export-excel")
     public ResponseEntity<?> exportExcel() {
 
         try {
-
             Map<String, List<StudentGrade>> classes =
                     gradeService.getLatestClasses();
 
-            if (classes == null
-                    || classes.isEmpty()) {
-
+            if (classes == null || classes.isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body("No data available");
             }
 
-            Workbook workbook =
-                    new XSSFWorkbook();
+            return ResponseEntity.ok()
+                    .header(
+                            HttpHeaders.CONTENT_DISPOSITION,
+                            attachment(gradeService.getLatestExcelFileName())
+                    )
+                    .contentType(XLSX_MEDIA_TYPE)
+                    .body(buildExcelBytes(classes));
 
-            for (String className
-                    : classes.keySet()) {
+        } catch (Exception e) {
+            e.printStackTrace();
 
+            return ResponseEntity.badRequest()
+                    .body("ERROR: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/latest")
+    public ResponseEntity<?> getLatestData() {
+
+        try {
+            Map<String, List<StudentGrade>> classes =
+                    gradeService.getLatestClasses();
+
+            if (classes == null || classes.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body("Chua co du lieu Excel");
+            }
+
+            return ResponseEntity.ok(classes);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            return ResponseEntity.badRequest()
+                    .body("ERROR: " + e.getMessage());
+        }
+    }
+
+    private byte[] buildExcelBytes(
+            Map<String, List<StudentGrade>> classes
+    ) throws Exception {
+
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            for (String className : classes.keySet()) {
                 Sheet sheet =
-                        workbook.createSheet(
-                                className
-                        );
-
-                // ===== HEADER =====
+                        workbook.createSheet(safeSheetName(className));
 
                 Row header =
                         sheet.createRow(0);
 
                 String[] columns = {
-
                         "Class",
                         "RollNumber",
                         "Email",
@@ -178,196 +307,105 @@ public class GradeController {
                         "Project_Comment"
                 };
 
-                for (int i = 0;
-                     i < columns.length;
-                     i++) {
-
+                for (int i = 0; i < columns.length; i++) {
                     header.createCell(i)
-                            .setCellValue(
-                                    columns[i]
-                            );
+                            .setCellValue(columns[i]);
                 }
-
-                // ===== DATA =====
 
                 List<StudentGrade> students =
                         classes.get(className);
 
                 int rowIndex = 1;
 
-                for (StudentGrade s
-                        : students) {
-
+                for (StudentGrade student : students) {
                     Row row =
-                            sheet.createRow(
-                                    rowIndex++
-                            );
+                            sheet.createRow(rowIndex++);
 
                     row.createCell(0)
-                            .setCellValue(
-                                    s.getClassName()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getClassName()));
                     row.createCell(1)
-                            .setCellValue(
-                                    s.getRollNumber()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getRollNumber()));
                     row.createCell(2)
-                            .setCellValue(
-                                    s.getEmail()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getEmail()));
                     row.createCell(3)
-                            .setCellValue(
-                                    s.getMemberCode()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getMemberCode()));
                     row.createCell(4)
-                            .setCellValue(
-                                    s.getFullName()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getFullName()));
                     row.createCell(5)
-                            .setCellValue(
-                                    s.getExamDate()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getExamDate()));
                     row.createCell(6)
-                            .setCellValue(
-                                    s.getExamNote()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getExamNote()));
                     row.createCell(7)
-                            .setCellValue(
-                                    s.getFinalExam()
-                            );
-
+                            .setCellValue(student.getFinalExam());
                     row.createCell(8)
-                            .setCellValue(
-                                    s.getFinalComment()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getFinalComment()));
                     row.createCell(9)
-                            .setCellValue(
-                                    s.getFinalResit()
-                            );
-
+                            .setCellValue(student.getFinalResit());
                     row.createCell(10)
-                            .setCellValue(
-                                    s.getFinalResitComment()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getFinalResitComment()));
                     row.createCell(11)
-                            .setCellValue(
-                                    s.getPractical()
-                            );
-
+                            .setCellValue(student.getPractical());
                     row.createCell(12)
-                            .setCellValue(
-                                    s.getPracticalComment()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getPracticalComment()));
                     row.createCell(13)
-                            .setCellValue(
-                                    s.getPt1()
-                            );
-
+                            .setCellValue(student.getPt1());
                     row.createCell(14)
-                            .setCellValue(
-                                    s.getPt1Comment()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getPt1Comment()));
                     row.createCell(15)
-                            .setCellValue(
-                                    s.getPt2()
-                            );
-
+                            .setCellValue(student.getPt2());
                     row.createCell(16)
-                            .setCellValue(
-                                    s.getPt2Comment()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getPt2Comment()));
                     row.createCell(17)
-                            .setCellValue(
-                                    s.getPt3()
-                            );
-
+                            .setCellValue(student.getPt3());
                     row.createCell(18)
-                            .setCellValue(
-                                    s.getPt3Comment()
-                            );
-
+                            .setCellValue(nullToEmpty(student.getPt3Comment()));
                     row.createCell(19)
-                            .setCellValue(
-                                    s.getProject()
-                            );
-
+                            .setCellValue(student.getProject());
                     row.createCell(20)
-                            .setCellValue(
-                                    s.getProjectComment()
-                            );
+                            .setCellValue(nullToEmpty(student.getProjectComment()));
                 }
 
-                // auto size
-                for (int i = 0;
-                     i < columns.length;
-                     i++) {
-
+                for (int i = 0; i < columns.length; i++) {
                     sheet.autoSizeColumn(i);
                 }
             }
 
-            ByteArrayOutputStream out =
-                    new ByteArrayOutputStream();
-
             workbook.write(out);
 
-            workbook.close();
-
-            return ResponseEntity.ok()
-                    .header(
-                            HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=grades.xlsx"
-                    )
-                    .contentType(
-                            MediaType.APPLICATION_OCTET_STREAM
-                    )
-                    .body(out.toByteArray());
-
-        } catch (Exception e) {
-
-            e.printStackTrace();
-
-            return ResponseEntity.badRequest()
-                    .body("ERROR: " + e.getMessage());
+            return out.toByteArray();
         }
     }
 
-    // ================= GET JSON =================
-    @GetMapping("/latest")
-    public ResponseEntity<?> getLatestData() {
+    private String safeSheetName(String value) {
+        String name =
+                nullToEmpty(value)
+                        .replaceAll("[\\\\/?*\\[\\]:]", "_")
+                        .trim();
 
-        try {
-
-            Map<String, List<StudentGrade>> classes =
-                    gradeService.getLatestClasses();
-
-            if (classes == null
-                    || classes.isEmpty()) {
-
-                return ResponseEntity.badRequest()
-                        .body("Chưa có dữ liệu Excel");
-            }
-
-            return ResponseEntity.ok(classes);
-
-        } catch (Exception e) {
-
-            e.printStackTrace();
-
-            return ResponseEntity.badRequest()
-                    .body("ERROR: " + e.getMessage());
+        if (name.isBlank()) {
+            return "Sheet1";
         }
+
+        return name.length() > 31
+                ? name.substring(0, 31)
+                : name;
+    }
+
+    private String attachment(String fileName) {
+        return "attachment; filename=\"" + sanitizeFileName(fileName) + "\"";
+    }
+
+    private String sanitizeFileName(String fileName) {
+        String safe =
+                nullToEmpty(fileName)
+                        .replace("\\", "_")
+                        .replace("/", "_")
+                        .replace("\"", "");
+
+        return safe.isBlank() ? "download" : safe;
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 }
