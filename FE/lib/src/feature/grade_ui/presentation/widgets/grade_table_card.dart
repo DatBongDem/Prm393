@@ -7,10 +7,14 @@ class GradeTableCard extends StatefulWidget {
     super.key,
     required this.className,
     required this.rows,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final String className;
   final List<StudentGrade> rows;
+  final Function(StudentGrade) onEdit;
+  final Function(StudentGrade) onDelete;
 
   @override
   State<GradeTableCard> createState() => _GradeTableCardState();
@@ -133,7 +137,7 @@ class _GradeTableCardState extends State<GradeTableCard> {
       ),
       const DataColumn(label: SizedBox(width: 100, child: Text('Result'))),
 
-      const DataColumn(label: SizedBox(width: 100, child: Text('Detail'))),
+      const DataColumn(label: SizedBox(width: 150, child: Text('Actions'))),
     ];
     final visibleRows = _visibleRows;
     final rows = visibleRows.map((s) {
@@ -152,11 +156,24 @@ class _GradeTableCardState extends State<GradeTableCard> {
           DataCell(Text(_num(s.total))),
           DataCell(_ResultChip(isPass: s.isPass)),
           DataCell(
-            IconButton(
-              icon: const Icon(Icons.visibility),
-              onPressed: () {
-                GradeDetailDialog.show(context, s);
-              },
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'View detail',
+                  icon: const Icon(Icons.visibility, size: 20, color: Colors.blue),
+                  onPressed: () => GradeDetailDialog.show(context, s),
+                ),
+                IconButton(
+                  tooltip: 'Edit student',
+                  icon: const Icon(Icons.edit, size: 20, color: Colors.orange),
+                  onPressed: () => widget.onEdit(s),
+                ),
+                IconButton(
+                  tooltip: 'Delete student',
+                  icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                  onPressed: () => widget.onDelete(s),
+                ),
+              ],
             ),
           ),
         ],
