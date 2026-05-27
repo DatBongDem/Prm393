@@ -8,10 +8,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class FgSubjectClassGrade {
 
     @JsonProperty("Subject")
-    private String subject = "";
+    private String subject;
 
     @JsonProperty("Class")
-    private String className = "";
+    private String className;
 
     @JsonProperty("Students")
     private List<FgStudent> students = new ArrayList<>();

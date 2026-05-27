@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class FgGradeComponent {
 
     @JsonProperty("Component")
-    private String component = "";
+    private String component;
 
     @JsonProperty("Grade")
     private Float grade;

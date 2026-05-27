@@ -37,10 +37,10 @@ class _GradeTableCardState extends State<GradeTableCard> {
     super.dispose();
   }
 
-  String _num(double value) {
+  String _num(double? value) {
+    if (value == null) return '-';
     // Hiển thị đẹp hơn: 6.0 -> 6, 8.32 -> 8.32
-    if (value == value.toInt()) return value.toInt().toString();
-    return value.toStringAsFixed(2);
+    return value.toStringAsFixed(1);
   }
 
   List<StudentGrade> get _visibleRows {
@@ -69,16 +69,16 @@ class _GradeTableCardState extends State<GradeTableCard> {
 
   double _scoreForColumn(StudentGrade student, int columnIndex) {
     return switch (columnIndex) {
-      2 => student.finalExam,
-      3 => student.finalResit,
-      4 => student.practical,
-      5 => student.practicalResit,
-      6 => student.pt1,
-      7 => student.pt2,
-      8 => student.pt3,
-      9 => student.project,
-      10 => student.total,
-      _ => 0,
+      2 => student.finalExam ?? double.negativeInfinity,
+      3 => student.finalResit ?? double.negativeInfinity,
+      4 => student.practical ?? double.negativeInfinity,
+      5 => student.practicalResit ?? double.negativeInfinity,
+      6 => student.pt1 ?? double.negativeInfinity,
+      7 => student.pt2 ?? double.negativeInfinity,
+      8 => student.pt3 ?? double.negativeInfinity,
+      9 => student.project ?? double.negativeInfinity,
+      10 => student.total ?? double.negativeInfinity,
+      _ => double.negativeInfinity,
     };
   }
 
@@ -154,7 +154,7 @@ class _GradeTableCardState extends State<GradeTableCard> {
           DataCell(Text(_num(s.pt3))),
           DataCell(Text(_num(s.project))),
           DataCell(Text(_num(s.total))),
-          DataCell(_ResultChip(isPass: s.isPass)),
+          DataCell(_ResultChip(result: s.result)),
           DataCell(
             Row(
               children: [
@@ -258,21 +258,33 @@ class _GradeTableCardState extends State<GradeTableCard> {
 }
 
 class _ResultChip extends StatelessWidget {
-  const _ResultChip({required this.isPass});
-  final bool isPass;
+  const _ResultChip({required this.result});
+  final String result;
 
   @override
   Widget build(BuildContext context) {
+    final normalized = result.toUpperCase();
+    final isPass = normalized == 'PASS';
+    final hasResult = normalized == 'PASS' || normalized == 'FAIL';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isPass ? const Color(0xFFEAFBF1) : const Color(0xFFFFECEC),
+        color: !hasResult
+            ? const Color(0xFFF3F4F6)
+            : isPass
+                ? const Color(0xFFEAFBF1)
+                : const Color(0xFFFFECEC),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        isPass ? 'PASS' : 'FAIL',
+        hasResult ? normalized : '-',
         style: TextStyle(
-          color: isPass ? const Color(0xFF1D7A46) : const Color(0xFFD93C3C),
+          color: !hasResult
+              ? const Color(0xFF6B7280)
+              : isPass
+                  ? const Color(0xFF1D7A46)
+                  : const Color(0xFFD93C3C),
           fontWeight: FontWeight.w700,
         ),
       ),
