@@ -45,7 +45,7 @@ public class StudentController {
                     gradeService.buildStudent(request);
 
             String className =
-                    student.getClassName();
+                    gradeService.resolveClassKey(student);
 
             classes.putIfAbsent(
                     className,
@@ -86,8 +86,11 @@ public class StudentController {
                         .body("No Excel uploaded");
             }
 
-            for (List<StudentGrade> students
-                    : classes.values()) {
+            for (Map.Entry<String, List<StudentGrade>> entry
+                    : classes.entrySet()) {
+
+                List<StudentGrade> students =
+                        entry.getValue();
 
                 for (int i = 0;
                      i < students.size();
@@ -106,7 +109,20 @@ public class StudentController {
                                         request
                                 );
 
-                        students.set(i, updated);
+                        String targetClass =
+                                gradeService.resolveClassKey(updated);
+
+                        if (entry.getKey().equals(targetClass)) {
+                            students.set(i, updated);
+                        } else {
+                            students.remove(i);
+                            classes.putIfAbsent(
+                                    targetClass,
+                                    new java.util.ArrayList<>()
+                            );
+                            classes.get(targetClass)
+                                    .add(updated);
+                        }
 
                         gradeService.refreshTeacherGradeFromClasses();
 
