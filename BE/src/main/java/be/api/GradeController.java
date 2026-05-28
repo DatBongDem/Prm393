@@ -24,12 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import be.business.GradeService;
-import be.business.dtos.FgGradeComponent;
-import be.business.dtos.FgStudent;
-import be.business.dtos.FgSubjectClassGrade;
 import be.business.dtos.StudentGrade;
 import be.business.dtos.StudentGradeRequest;
-import be.business.dtos.TeacherGradeFile;
 
 @RestController
 @RequestMapping("/grade")
@@ -39,6 +35,30 @@ public class GradeController {
             MediaType.parseMediaType(
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             );
+
+    private static final String[] EXCEL_COLUMNS = {
+            "Class",
+            "RollNumber",
+            "Email",
+            "MemberCode",
+            "FullName",
+            "ExamDate",
+            "ExamNote",
+            "Final Exam",
+            "Final Exam_Comment",
+            "Final Exam Resit",
+            "Final Exam Resit_Comment",
+            "Practical Exam",
+            "Practical Exam_Comment",
+            "Progress Test 1",
+            "Progress Test 1_Comment",
+            "Progress Test 2",
+            "Progress Test 2_Comment",
+            "Progress Test 3",
+            "Progress Test 3_Comment",
+            "Project",
+            "Project_Comment"
+    };
 
     @Autowired
     private GradeService gradeService;
@@ -117,6 +137,37 @@ public class GradeController {
         }
     }
 
+    @GetMapping("/get-final")
+    public ResponseEntity<?> getFinal() {
+
+        try {
+            Map<String, List<StudentGrade>> classes =
+                    gradeService.getLatestClasses();
+
+            if (classes == null || classes.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body("No data available");
+            }
+
+            gradeService.refreshTeacherGradeFromClasses();
+
+            Map<String, Object> response =
+                    new HashMap<>();
+
+            response.put("message", "Get final data success");
+            response.put("fileInfo", gradeService.getLatestFileInfo());
+            response.put("classes", classes);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            return ResponseEntity.badRequest()
+                    .body("ERROR: " + e.getMessage());
+        }
+    }
+
     @GetMapping("/export-fg")
     public ResponseEntity<?> exportFG() {
 
@@ -128,6 +179,8 @@ public class GradeController {
                 return ResponseEntity.badRequest()
                         .body("No FG file available");
             }
+
+            gradeService.refreshTeacherGradeFromClasses();
 
             byte[] fgBytes =
                     gradeService.generateFGContent(classes);
@@ -163,6 +216,8 @@ public class GradeController {
                         .body("No data available");
             }
 
+            gradeService.refreshTeacherGradeFromClasses();
+
             return ResponseEntity.ok()
                     .header(
                             HttpHeaders.CONTENT_DISPOSITION,
@@ -170,10 +225,7 @@ public class GradeController {
                     )
                     .contentType(XLSX_MEDIA_TYPE)
                     .body(
-                            buildExcelBytes(
-                                    gradeService.getLatestTeacherGrade(),
-                                    classes
-                            )
+                            buildExcelBytes(classes)
                     );
 
         } catch (Exception e) {
@@ -185,7 +237,6 @@ public class GradeController {
     }
 
     private byte[] buildExcelBytes(
-            TeacherGradeFile teacherGrade,
             Map<String, List<StudentGrade>> classes
     ) throws Exception {
 
@@ -195,54 +246,32 @@ public class GradeController {
             CellStyle scoreStyle =
                     scoreCellStyle(workbook);
 
-            if (teacherGrade != null
-                    && teacherGrade.getSubjectClassGrades() != null
-                    && !teacherGrade.getSubjectClassGrades().isEmpty()) {
-
-                buildTeacherGradeSheets(workbook, teacherGrade, scoreStyle);
-                workbook.write(out);
-
-                return out.toByteArray();
-            }
-
             for (String className : classes.keySet()) {
+                List<StudentGrade> students =
+                        classes.get(className) == null
+                                ? List.of()
+                                : classes.get(className);
+
                 Sheet sheet =
-                        workbook.createSheet(safeSheetName(className));
+                        workbook.createSheet(
+                                uniqueSheetName(
+                                        workbook,
+                                        safeSheetName(
+                                                exportSheetName(
+                                                        className,
+                                                        students
+                                                )
+                                        )
+                                )
+                        );
 
                 Row header =
                         sheet.createRow(0);
 
-                String[] columns = {
-                        "Class",
-                        "RollNumber",
-                        "Email",
-                        "MemberCode",
-                        "FullName",
-                        "ExamDate",
-                        "ExamNote",
-                        "Final Exam",
-                        "Final Exam_Comment",
-                        "Final Exam Resit",
-                        "Final Exam Resit_Comment",
-                        "Practical Exam",
-                        "Practical Exam_Comment",
-                        "Progress Test 1",
-                        "Progress Test 1_Comment",
-                        "Progress Test 2",
-                        "Progress Test 2_Comment",
-                        "Progress Test 3",
-                        "Progress Test 3_Comment",
-                        "Project",
-                        "Project_Comment"
-                };
-
-                for (int i = 0; i < columns.length; i++) {
+                for (int i = 0; i < EXCEL_COLUMNS.length; i++) {
                     header.createCell(i)
-                            .setCellValue(columns[i]);
+                            .setCellValue(EXCEL_COLUMNS[i]);
                 }
-
-                List<StudentGrade> students =
-                        classes.get(className);
 
                 int rowIndex = 1;
 
@@ -290,7 +319,7 @@ public class GradeController {
                             .setCellValue(nullToEmpty(fileRow.getProjectComment()));
                 }
 
-                for (int i = 0; i < columns.length; i++) {
+                for (int i = 0; i < EXCEL_COLUMNS.length; i++) {
                     sheet.autoSizeColumn(i);
                 }
             }
@@ -299,106 +328,6 @@ public class GradeController {
 
             return out.toByteArray();
         }
-    }
-
-    private void buildTeacherGradeSheets(
-            Workbook workbook,
-            TeacherGradeFile teacherGrade,
-            CellStyle scoreStyle
-    ) {
-
-        for (FgSubjectClassGrade subjectClass
-                : teacherGrade.getSubjectClassGrades()) {
-
-            Sheet sheet =
-                    workbook.createSheet(
-                            uniqueSheetName(
-                                    workbook,
-                                    safeSheetName(
-                                            nullToEmpty(subjectClass.getSubject())
-                                                    + "_"
-                                                    + nullToEmpty(
-                                                            subjectClass.getClassName()
-                                                    )
-                                    )
-                            )
-                    );
-
-            List<String> components =
-                    subjectClass.getComponents() == null
-                            ? List.of()
-                            : subjectClass.getComponents();
-
-            Row header =
-                    sheet.createRow(0);
-
-            header.createCell(0).setCellValue("Class");
-            header.createCell(1).setCellValue("RollNumber");
-            header.createCell(2).setCellValue("FullName");
-            header.createCell(3).setCellValue("Comment");
-
-            for (int i = 0; i < components.size(); i++) {
-                header.createCell(i + 4)
-                        .setCellValue(components.get(i));
-            }
-
-            List<FgStudent> students =
-                    subjectClass.getStudents() == null
-                            ? List.of()
-                            : subjectClass.getStudents();
-
-            int rowIndex = 1;
-
-            for (FgStudent student : students) {
-                Row row =
-                        sheet.createRow(rowIndex++);
-
-                row.createCell(0)
-                        .setCellValue(
-                                nullToEmpty(subjectClass.getClassName())
-                        );
-                row.createCell(1)
-                        .setCellValue(nullToEmpty(student.getRoll()));
-                row.createCell(2)
-                        .setCellValue(nullToEmpty(student.getName()));
-                row.createCell(3)
-                        .setCellValue(nullToEmpty(student.getComment()));
-
-                Map<String, Float> grades =
-                        gradeMap(student);
-
-                for (int i = 0; i < components.size(); i++) {
-                    Float grade =
-                            grades.get(normalize(components.get(i)));
-
-                    if (grade != null) {
-                        setNumericCell(row, i + 4, grade, scoreStyle);
-                    }
-                }
-            }
-
-            for (int i = 0; i < components.size() + 4; i++) {
-                sheet.autoSizeColumn(i);
-            }
-        }
-    }
-
-    private Map<String, Float> gradeMap(FgStudent student) {
-        Map<String, Float> grades =
-                new HashMap<>();
-
-        if (student.getGrades() == null) {
-            return grades;
-        }
-
-        for (FgGradeComponent grade : student.getGrades()) {
-            grades.put(
-                    normalize(grade.getComponent()),
-                    grade.getGrade()
-            );
-        }
-
-        return grades;
     }
 
     private void setNumericCell(
@@ -446,6 +375,21 @@ public class GradeController {
         return name.length() > 31
                 ? name.substring(0, 31)
                 : name;
+    }
+
+    private String exportSheetName(
+            String classKey,
+            List<StudentGrade> students
+    ) {
+
+        for (StudentGrade student : students) {
+            if (student.getClassName() != null
+                    && !student.getClassName().isBlank()) {
+                return student.getClassName();
+            }
+        }
+
+        return classKey;
     }
 
     private String uniqueSheetName(
@@ -497,13 +441,5 @@ public class GradeController {
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
-    }
-
-    private String normalize(String value) {
-        return nullToEmpty(value)
-                .replace(" ", "")
-                .replace("_", "")
-                .trim()
-                .toLowerCase(java.util.Locale.ROOT);
     }
 }
