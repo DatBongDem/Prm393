@@ -26,6 +26,8 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
   String? _selectedClass;
 
   List<StudentGrade> _rows = [];
+  List<StudentGrade> _aiResultRows = [];
+  bool _isShowingAiResult = false;
 
   late final GradeApiService _api = GradeApiService(
     baseUrl: "http://localhost:8080",
@@ -55,6 +57,7 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
             ? response.classes[_selectedClass!] ?? []
             : [];
 
+        _clearAiResult();
         _showTable = true;
       });
     } catch (e) {
@@ -74,7 +77,20 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
       _selectedClass = value;
 
       _rows = _apiCache[value] ?? [];
+      _clearAiResult();
     });
+  }
+
+  void _showAiResult(List<StudentGrade> students) {
+    setState(() {
+      _aiResultRows = students;
+      _isShowingAiResult = true;
+    });
+  }
+
+  void _clearAiResult() {
+    _aiResultRows = [];
+    _isShowingAiResult = false;
   }
 
   Future<void> _exportFile() async {
@@ -282,10 +298,16 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
   Widget build(BuildContext context) {
     final mainContent = _showTable
         ? GradeTableCard(
-            className: _selectedClass ?? '',
-            rows: _rows,
+            className: _isShowingAiResult
+                ? 'AI Search Result'
+                : _selectedClass ?? '',
+            rows: _isShowingAiResult ? _aiResultRows : _rows,
             onEdit: _editStudent,
             onDelete: _deleteStudent,
+            isAiResult: _isShowingAiResult,
+            onClearAiResult: () {
+              setState(_clearAiResult);
+            },
           )
         : const EmptyStateCard();
     return Scaffold(
@@ -329,7 +351,9 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
                               initialHeight: constraints.maxHeight,
                               minWidth: 300,
                               maxWidth: maxAiWidth,
-                              child: const AiPannelCard(),
+                              child: AiPannelCard(
+                                onStudentsFound: _showAiResult,
+                              ),
                             ),
                           ],
                         ],
@@ -352,7 +376,7 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
                             minHeight: 220,
                             maxHeight: maxAiHeight,
                             isHorizontal: false,
-                            child: const AiPannelCard(),
+                            child: AiPannelCard(onStudentsFound: _showAiResult),
                           ),
                         ],
                       ],

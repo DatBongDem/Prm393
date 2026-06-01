@@ -68,12 +68,16 @@ class GradeTableCard extends StatefulWidget {
     required this.rows,
     required this.onEdit,
     required this.onDelete,
+    this.isAiResult = false,
+    this.onClearAiResult,
   });
 
   final String className;
   final List<StudentGrade> rows;
   final Function(StudentGrade) onEdit;
   final Function(StudentGrade) onDelete;
+  final bool isAiResult;
+  final VoidCallback? onClearAiResult;
 
   @override
   State<GradeTableCard> createState() => _GradeTableCardState();
@@ -100,6 +104,17 @@ class _GradeTableCardState extends State<GradeTableCard> {
     if (value == null) return '-';
     // Hiển thị đẹp hơn: 6.0 -> 6, 8.32 -> 8.32
     return value.toStringAsFixed(1);
+  }
+
+  bool get _showClassColumn {
+    if (!widget.isAiResult) return false;
+
+    return widget.rows
+            .map((student) => student.className)
+            .where((className) => className.isNotEmpty)
+            .toSet()
+            .length >
+        1;
   }
 
   List<StudentGrade> _visibleRows(List<_ScoreColumn> scoreColumns) {
@@ -132,7 +147,7 @@ class _GradeTableCardState extends State<GradeTableCard> {
     int columnIndex,
     List<_ScoreColumn> scoreColumns,
   ) {
-    final scoreIndex = columnIndex - 2;
+    final scoreIndex = columnIndex - 2 - (_showClassColumn ? 1 : 0);
     if (scoreIndex < 0 || scoreIndex >= scoreColumns.length) {
       return double.negativeInfinity;
     }
@@ -161,7 +176,7 @@ class _GradeTableCardState extends State<GradeTableCard> {
     List<_ScoreColumn> scoreColumns,
   ) {
     if (columnIndex == null) return false;
-    final scoreIndex = columnIndex - 2;
+    final scoreIndex = columnIndex - 2 - (_showClassColumn ? 1 : 0);
     return scoreIndex >= 0 && scoreIndex < scoreColumns.length;
   }
 
@@ -177,6 +192,8 @@ class _GradeTableCardState extends State<GradeTableCard> {
         ? _sortColumnIndex
         : null;
     final columns = <DataColumn>[
+      if (_showClassColumn)
+        const DataColumn(label: SizedBox(width: 110, child: Text('Class'))),
       const DataColumn(label: SizedBox(width: 110, child: Text('Roll Number'))),
       const DataColumn(label: SizedBox(width: 170, child: Text('Full Name'))),
 
@@ -196,6 +213,7 @@ class _GradeTableCardState extends State<GradeTableCard> {
     final rows = visibleRows.map((s) {
       return DataRow(
         cells: [
+          if (_showClassColumn) DataCell(Text(s.className)),
           DataCell(Text(s.rollNumber)),
           DataCell(Text(s.fullName)),
           for (final scoreColumn in scoreColumns)
@@ -213,16 +231,22 @@ class _GradeTableCardState extends State<GradeTableCard> {
                   ),
                   onPressed: () => GradeDetailDialog.show(context, s),
                 ),
-                IconButton(
-                  tooltip: 'Edit student',
-                  icon: const Icon(Icons.edit, size: 20, color: Colors.orange),
-                  onPressed: () => widget.onEdit(s),
-                ),
-                IconButton(
-                  tooltip: 'Delete student',
-                  icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                  onPressed: () => widget.onDelete(s),
-                ),
+                if (!widget.isAiResult) ...[
+                  IconButton(
+                    tooltip: 'Edit student',
+                    icon: const Icon(
+                      Icons.edit,
+                      size: 20,
+                      color: Colors.orange,
+                    ),
+                    onPressed: () => widget.onEdit(s),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete student',
+                    icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                    onPressed: () => widget.onDelete(s),
+                  ),
+                ],
               ],
             ),
           ),
@@ -235,9 +259,21 @@ class _GradeTableCardState extends State<GradeTableCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Board Grade - ${widget.className}',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Board Grade - ${widget.className}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (widget.isAiResult)
+                  TextButton.icon(
+                    onPressed: widget.onClearAiResult,
+                    icon: const Icon(Icons.close),
+                    label: const Text('Clear AI result'),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
             SizedBox(

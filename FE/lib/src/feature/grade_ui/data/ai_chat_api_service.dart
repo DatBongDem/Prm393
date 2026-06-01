@@ -12,7 +12,7 @@ class AiChatApiService {
 
   Uri get _chatUri => Uri.parse('$baseUrl/ai/chat');
 
-  Future<String> ask(String message) async {
+  Future<AiChatResult> ask(String message) async {
     final response = await _client.post(
       _chatUri,
       headers: const {
@@ -27,40 +27,61 @@ class AiChatApiService {
       throw Exception('AI chat failed (${response.statusCode}). Body: $body');
     }
 
-    return _formatResponse(jsonDecode(body));
+    return _parseResponse(jsonDecode(body));
   }
 
-  String _formatResponse(dynamic decoded) {
-    if (decoded is String) return decoded;
+  AiChatResult _parseResponse(dynamic decoded) {
+    if (decoded is String) return AiChatResult(message: decoded);
 
     if (decoded is List) {
-      if (decoded.isEmpty) return 'No students matched your question.';
-
       final students = decoded
           .whereType<Map<String, dynamic>>()
           .map(StudentGrade.fromJson)
           .toList();
 
-      if (students.isEmpty) return decoded.toString();
-
-      return students.map(_formatStudent).join('\n');
+      return AiChatResult.fromStudents(students);
     }
 
-    return decoded.toString();
-  }
+    if (decoded is Map<String, dynamic>) {
+      final rawClasses = decoded['classes'];
+      if (rawClasses is Map<String, dynamic>) {
+        final students = <StudentGrade>[];
 
-  String _formatStudent(StudentGrade student) {
-    return '${student.rollNumber} - ${student.fullName} | '
-        'Total: ${_formatScore(student.total)} | ${student.result}';
-  }
+        rawClasses.forEach((className, value) {
+          if (value is! List) return;
 
-  String _formatScore(double? value) {
-    if (value == null) return 'N/A';
-    if (value == value.toInt()) return value.toInt().toString();
-    return value.toStringAsFixed(2);
+          students.addAll(
+            value.whereType<Map<String, dynamic>>().map(
+              (json) =>
+                  StudentGrade.fromJson(json, fallbackClassName: className),
+            ),
+          );
+        });
+
+        return AiChatResult.fromStudents(students);
+      }
+    }
+
+    return AiChatResult(message: decoded.toString());
   }
 
   void dispose() {
     _client.close();
   }
+}
+
+class AiChatResult {
+  const AiChatResult({this.students = const [], required this.message});
+
+  factory AiChatResult.fromStudents(List<StudentGrade> students) {
+    return AiChatResult(
+      students: students,
+      message: students.isEmpty
+          ? 'No students matched your question.'
+          : 'Found ${students.length} matching student(s).',
+    );
+  }
+
+  final List<StudentGrade> students;
+  final String message;
 }

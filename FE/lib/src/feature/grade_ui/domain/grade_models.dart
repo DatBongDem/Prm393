@@ -87,13 +87,19 @@ class StudentGrade {
   final String result;
   final String comment;
   final List<GradeComponent> gradeComponents;
-  factory StudentGrade.fromJson(Map<String, dynamic> json) {
+
+  factory StudentGrade.fromJson(
+    Map<String, dynamic> json, {
+    String fallbackClassName = '',
+  }) {
     final gradeComponents = (json['gradeComponents'] as List<dynamic>? ?? [])
         .map((e) => GradeComponent.fromJson(e as Map<String, dynamic>))
         .toList();
 
     return StudentGrade(
-      className: _asString(json['className']),
+      className: _asString(json['className']).isNotEmpty
+          ? _asString(json['className'])
+          : fallbackClassName,
       rollNumber: _asString(json['rollNumber']),
       email: _asString(json['email']),
       memberCode: _asString(json['memberCode']),
