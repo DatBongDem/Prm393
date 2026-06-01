@@ -54,7 +54,8 @@ class AiChatApiService {
         'Total: ${_formatScore(student.total)} | ${student.result}';
   }
 
-  String _formatScore(double value) {
+  String _formatScore(double? value) {
+    if (value == null) return 'N/A';
     if (value == value.toInt()) return value.toInt().toString();
     return value.toStringAsFixed(2);
   }
