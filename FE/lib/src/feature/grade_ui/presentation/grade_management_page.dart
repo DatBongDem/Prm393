@@ -5,6 +5,7 @@ import 'package:fe/src/feature/grade_ui/presentation/widgets/empty_state_card.da
 import 'package:fe/src/feature/grade_ui/presentation/widgets/grade_form_dialog.dart';
 import 'package:fe/src/feature/grade_ui/presentation/widgets/grade_header_card.dart';
 import 'package:fe/src/feature/grade_ui/presentation/widgets/grade_table_card.dart';
+import 'package:fe/src/feature/grade_ui/presentation/widgets/resizable_panel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -18,6 +19,7 @@ class GradeManagementPage extends StatefulWidget {
 class _GradeManagementPageState extends State<GradeManagementPage> {
   bool _showTable = false;
   bool _isImporting = false;
+  bool _isExporting = false;
 
   List<String> _classOptions = [];
 
@@ -30,7 +32,10 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
   );
 
   Future<void> _importFile() async {
-    final result = await FilePicker.platform.pickFiles();
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['fg', 'xls', 'xlsx', 'xml'],
+    );
     if (result == null || result.files.isEmpty) return;
 
     setState(() => _isImporting = true);
@@ -72,10 +77,102 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
     });
   }
 
-  void _exportFile() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Exporting file...")));
+  Future<void> _exportFile() async {
+    final format = await _chooseExportFormat();
+    if (format == null) return;
+
+    setState(() => _isExporting = true);
+
+    try {
+      final exportFile = await _api.exportGradeFile(format);
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save exported grade file',
+        fileName: exportFile.fileName,
+        type: FileType.custom,
+        allowedExtensions: [exportFile.extension],
+        bytes: exportFile.bytes,
+        lockParentWindow: true,
+      );
+
+      if (!mounted || path == null) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Exported successfully: $path')));
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Export failed: $e")));
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+
+  Future<GradeExportFormat?> _chooseExportFormat() {
+    return showDialog<GradeExportFormat>(
+      context: context,
+      builder: (context) => AlertDialog(
+        titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
+        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.file_download_outlined,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Export file',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ExportOptionTile(
+                icon: Icons.table_chart_outlined,
+                title: 'Excel workbook',
+                subtitle: 'Save the current grade data as .xlsx',
+                color: const Color(0xFF1D7A46),
+                onTap: () => Navigator.pop(context, GradeExportFormat.excel),
+              ),
+              const SizedBox(height: 10),
+              _ExportOptionTile(
+                icon: Icons.description_outlined,
+                title: 'FG file',
+                subtitle: 'Save the current grade data as .fg',
+                color: const Color(0xFF2B6DE9),
+                onTap: () => Navigator.pop(context, GradeExportFormat.fg),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _createStudent() async {
@@ -102,9 +199,9 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
           const SnackBar(content: Text("Student created successfully!")),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to create student: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to create student: $e")));
       }
     }
   }
@@ -118,9 +215,14 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
 
     if (request != null) {
       try {
-        final updatedStudent = await _api.updateStudent(student.rollNumber, request);
+        final updatedStudent = await _api.updateStudent(
+          student.rollNumber,
+          request,
+        );
         setState(() {
-          final index = _rows.indexWhere((s) => s.rollNumber == student.rollNumber);
+          final index = _rows.indexWhere(
+            (s) => s.rollNumber == student.rollNumber,
+          );
           if (index != -1) {
             _rows[index] = updatedStudent;
             _apiCache[_selectedClass!] = _rows;
@@ -130,9 +232,9 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
           const SnackBar(content: Text("Student updated successfully!")),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to update student: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to update student: $e")));
       }
     }
   }
@@ -142,9 +244,14 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Confirm Delete"),
-        content: Text("Are you sure you want to delete student ${student.fullName}?"),
+        content: Text(
+          "Are you sure you want to delete student ${student.fullName}?",
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
@@ -164,9 +271,9 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
           const SnackBar(content: Text("Student deleted successfully!")),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to delete student: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to delete student: $e")));
       }
     }
   }
@@ -191,7 +298,9 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
                 isImporting: _isImporting,
                 onImportPressed: _importFile,
                 onCreatePressed: _createStudent,
-                onExportPressed: _showTable ? _exportFile : null,
+                onExportPressed: _showTable && !_isExporting
+                    ? _exportFile
+                    : null,
                 classOptions: _classOptions,
                 selectedClass: _selectedClass,
                 onClassChanged: _onClassChanged,
@@ -204,30 +313,125 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
                     final isWide = constraints.maxWidth >= 1450;
 
                     if (isWide) {
+                      final maxAiWidth = (constraints.maxWidth * 0.45).clamp(
+                        300.0,
+                        560.0,
+                      );
+
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(child: mainContent),
                           if (_showTable) ...[
                             const SizedBox(width: 12),
-                            const SizedBox(width: 300, child: AiPannelCard()),
+                            ResizablePanel(
+                              initialWidth: 340,
+                              initialHeight: constraints.maxHeight,
+                              minWidth: 300,
+                              maxWidth: maxAiWidth,
+                              child: const AiPannelCard(),
+                            ),
                           ],
                         ],
                       );
                     }
+
+                    final maxAiHeight = (constraints.maxHeight * 0.55).clamp(
+                      220.0,
+                      420.0,
+                    );
 
                     return Column(
                       children: [
                         Expanded(child: mainContent),
                         if (_showTable) ...[
                           const SizedBox(height: 12),
-                          const SizedBox(height: 220, child: AiPannelCard()),
+                          ResizablePanel(
+                            initialWidth: constraints.maxWidth,
+                            initialHeight: 260,
+                            minHeight: 220,
+                            maxHeight: maxAiHeight,
+                            isHorizontal: false,
+                            child: const AiPannelCard(),
+                          ),
                         ],
                       ],
                     );
                   },
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExportOptionTile extends StatelessWidget {
+  const _ExportOptionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(24),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
             ],
           ),
         ),

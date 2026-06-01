@@ -42,6 +42,9 @@ class StudentGrade {
     required this.pt2Comment,
     required this.pt3,
     required this.pt3Comment,
+    required this.assignment1,
+    required this.assignment2,
+    required this.assignment3,
     required this.project,
     required this.projectComment,
     required this.total,
@@ -73,6 +76,10 @@ class StudentGrade {
   final double? pt3;
   final String pt3Comment;
 
+  final double? assignment1;
+  final double? assignment2;
+  final double? assignment3;
+
   final double? project;
   final String projectComment;
 
@@ -81,6 +88,10 @@ class StudentGrade {
   final String comment;
   final List<GradeComponent> gradeComponents;
   factory StudentGrade.fromJson(Map<String, dynamic> json) {
+    final gradeComponents = (json['gradeComponents'] as List<dynamic>? ?? [])
+        .map((e) => GradeComponent.fromJson(e as Map<String, dynamic>))
+        .toList();
+
     return StudentGrade(
       className: _asString(json['className']),
       rollNumber: _asString(json['rollNumber']),
@@ -100,14 +111,21 @@ class StudentGrade {
       pt2Comment: _asString(json['pt2Comment']),
       pt3: _asDouble(json['pt3']),
       pt3Comment: _asString(json['pt3Comment']),
+      assignment1:
+          _asDouble(json['assignment1']) ??
+          _componentGrade(gradeComponents, ['Assignment 1', 'Assignment1']),
+      assignment2:
+          _asDouble(json['assignment2']) ??
+          _componentGrade(gradeComponents, ['Assignment 2', 'Assignment2']),
+      assignment3:
+          _asDouble(json['assignment3']) ??
+          _componentGrade(gradeComponents, ['Assignment 3', 'Assignment3']),
       project: _asDouble(json['project']),
       projectComment: _asString(json['projectComment']),
       total: _asDouble(json['total']),
       result: _asString(json['result']),
       comment: _asString(json['comment']),
-      gradeComponents: (json['gradeComponents'] as List<dynamic>? ?? [])
-          .map((e) => GradeComponent.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      gradeComponents: gradeComponents,
     );
   }
 
@@ -118,6 +136,27 @@ class StudentGrade {
   static double? _asDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '');
+  }
+
+  static double? _componentGrade(
+    List<GradeComponent> gradeComponents,
+    List<String> names,
+  ) {
+    final normalizedNames = names.map(_normalizeComponent).toSet();
+
+    for (final gradeComponent in gradeComponents) {
+      if (normalizedNames.contains(
+        _normalizeComponent(gradeComponent.component),
+      )) {
+        return gradeComponent.grade;
+      }
+    }
+
+    return null;
+  }
+
+  static String _normalizeComponent(String value) {
+    return value.replaceAll(RegExp(r'[\s_-]+'), '').toLowerCase();
   }
 }
 

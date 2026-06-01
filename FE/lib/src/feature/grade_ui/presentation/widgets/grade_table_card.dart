@@ -2,6 +2,65 @@ import 'package:fe/src/feature/grade_ui/domain/grade_models.dart';
 import 'package:fe/src/feature/grade_ui/presentation/widgets/grade_detail_dialog.dart';
 import 'package:flutter/material.dart';
 
+final List<_ScoreColumn> _allScoreColumns = [
+  _ScoreColumn(
+    label: 'Final Exam',
+    width: 100,
+    valueOf: (student) => student.finalExam,
+  ),
+  _ScoreColumn(
+    label: 'Final Exam Resit',
+    width: 110,
+    valueOf: (student) => student.finalResit,
+  ),
+  _ScoreColumn(
+    label: 'Practical Exam',
+    width: 110,
+    valueOf: (student) => student.practical,
+  ),
+  _ScoreColumn(
+    label: 'Practical Exam Resit',
+    width: 110,
+    valueOf: (student) => student.practicalResit,
+  ),
+  _ScoreColumn(
+    label: 'Progress Test 1',
+    width: 120,
+    valueOf: (student) => student.pt1,
+  ),
+  _ScoreColumn(
+    label: 'Progress Test 2',
+    width: 120,
+    valueOf: (student) => student.pt2,
+  ),
+  _ScoreColumn(
+    label: 'Progress Test 3',
+    width: 120,
+    valueOf: (student) => student.pt3,
+  ),
+  _ScoreColumn(
+    label: 'Assignment 1',
+    width: 110,
+    valueOf: (student) => student.assignment1,
+  ),
+  _ScoreColumn(
+    label: 'Assignment 2',
+    width: 110,
+    valueOf: (student) => student.assignment2,
+  ),
+  _ScoreColumn(
+    label: 'Assignment 3',
+    width: 110,
+    valueOf: (student) => student.assignment3,
+  ),
+  _ScoreColumn(
+    label: 'Project',
+    width: 110,
+    valueOf: (student) => student.project,
+  ),
+  _ScoreColumn(label: 'Total', width: 100, valueOf: (student) => student.total),
+];
+
 class GradeTableCard extends StatefulWidget {
   const GradeTableCard({
     super.key,
@@ -43,7 +102,7 @@ class _GradeTableCardState extends State<GradeTableCard> {
     return value.toStringAsFixed(1);
   }
 
-  List<StudentGrade> get _visibleRows {
+  List<StudentGrade> _visibleRows(List<_ScoreColumn> scoreColumns) {
     final query = _searchQuery.trim().toLowerCase();
     final filtered = widget.rows.where((student) {
       if (query.isEmpty) return true;
@@ -59,7 +118,8 @@ class _GradeTableCardState extends State<GradeTableCard> {
       final comparison = _scoreForColumn(
         a,
         sortColumnIndex,
-      ).compareTo(_scoreForColumn(b, sortColumnIndex));
+        scoreColumns,
+      ).compareTo(_scoreForColumn(b, sortColumnIndex, scoreColumns));
 
       return _sortAscending ? comparison : -comparison;
     });
@@ -67,19 +127,17 @@ class _GradeTableCardState extends State<GradeTableCard> {
     return filtered;
   }
 
-  double _scoreForColumn(StudentGrade student, int columnIndex) {
-    return switch (columnIndex) {
-      2 => student.finalExam ?? double.negativeInfinity,
-      3 => student.finalResit ?? double.negativeInfinity,
-      4 => student.practical ?? double.negativeInfinity,
-      5 => student.practicalResit ?? double.negativeInfinity,
-      6 => student.pt1 ?? double.negativeInfinity,
-      7 => student.pt2 ?? double.negativeInfinity,
-      8 => student.pt3 ?? double.negativeInfinity,
-      9 => student.project ?? double.negativeInfinity,
-      10 => student.total ?? double.negativeInfinity,
-      _ => double.negativeInfinity,
-    };
+  double _scoreForColumn(
+    StudentGrade student,
+    int columnIndex,
+    List<_ScoreColumn> scoreColumns,
+  ) {
+    final scoreIndex = columnIndex - 2;
+    if (scoreIndex < 0 || scoreIndex >= scoreColumns.length) {
+      return double.negativeInfinity;
+    }
+
+    return scoreColumns[scoreIndex].valueOf(student) ?? double.negativeInfinity;
   }
 
   void _onScoreSort(int columnIndex, bool ascending) {
@@ -89,78 +147,70 @@ class _GradeTableCardState extends State<GradeTableCard> {
     });
   }
 
+  List<_ScoreColumn> _visibleScoreColumns() {
+    return _allScoreColumns
+        .where(
+          (column) =>
+              widget.rows.any((student) => column.valueOf(student) != null),
+        )
+        .toList();
+  }
+
+  bool _isVisibleScoreColumnIndex(
+    int? columnIndex,
+    List<_ScoreColumn> scoreColumns,
+  ) {
+    if (columnIndex == null) return false;
+    final scoreIndex = columnIndex - 2;
+    return scoreIndex >= 0 && scoreIndex < scoreColumns.length;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scoreColumns = _visibleScoreColumns();
+    final showResultColumn = widget.rows.any(
+      (student) => student.result.isNotEmpty,
+    );
+    final visibleRows = _visibleRows(scoreColumns);
+    final activeSortColumnIndex =
+        _isVisibleScoreColumnIndex(_sortColumnIndex, scoreColumns)
+        ? _sortColumnIndex
+        : null;
     final columns = <DataColumn>[
       const DataColumn(label: SizedBox(width: 110, child: Text('Roll Number'))),
       const DataColumn(label: SizedBox(width: 170, child: Text('Full Name'))),
 
-      DataColumn(
-        label: const SizedBox(width: 100, child: Text('Final Exam')),
-        onSort: _onScoreSort,
-      ),
-      DataColumn(
-        label: const SizedBox(width: 110, child: Text('Final Exam Resit')),
-        onSort: _onScoreSort,
-      ),
-      DataColumn(
-        label: const SizedBox(width: 110, child: Text('Practical Exam')),
-        onSort: _onScoreSort,
-      ),
-      DataColumn(
-        label: const SizedBox(width: 110, child: Text('Practical Exam Resit')),
-        onSort: _onScoreSort,
-      ),
-      DataColumn(
-        label: const SizedBox(width: 120, child: Text('Progress Test 1')),
-        onSort: _onScoreSort,
-      ),
-
-      DataColumn(
-        label: const SizedBox(width: 120, child: Text('Progress Test 2')),
-        onSort: _onScoreSort,
-      ),
-
-      DataColumn(
-        label: const SizedBox(width: 120, child: Text('Progress Test 3')),
-        onSort: _onScoreSort,
-      ),
-
-      DataColumn(
-        label: const SizedBox(width: 110, child: Text('Project')),
-        onSort: _onScoreSort,
-      ),
-
-      DataColumn(
-        label: const SizedBox(width: 100, child: Text('Total')),
-        onSort: _onScoreSort,
-      ),
-      const DataColumn(label: SizedBox(width: 100, child: Text('Result'))),
+      for (final scoreColumn in scoreColumns)
+        DataColumn(
+          label: SizedBox(
+            width: scoreColumn.width,
+            child: Text(scoreColumn.label),
+          ),
+          onSort: _onScoreSort,
+        ),
+      if (showResultColumn)
+        const DataColumn(label: SizedBox(width: 100, child: Text('Result'))),
 
       const DataColumn(label: SizedBox(width: 150, child: Text('Actions'))),
     ];
-    final visibleRows = _visibleRows;
     final rows = visibleRows.map((s) {
       return DataRow(
         cells: [
           DataCell(Text(s.rollNumber)),
           DataCell(Text(s.fullName)),
-          DataCell(Text(_num(s.finalExam))),
-          DataCell(Text(_num(s.finalResit))),
-          DataCell(Text(_num(s.practical))),
-          DataCell(Text(_num(s.practicalResit))),
-          DataCell(Text(_num(s.pt1))),
-          DataCell(Text(_num(s.pt2))),
-          DataCell(Text(_num(s.pt3))),
-          DataCell(Text(_num(s.project))),
-          DataCell(Text(_num(s.total))),
-          DataCell(_ResultChip(result: s.result)),
+          for (final scoreColumn in scoreColumns)
+            DataCell(Text(_num(scoreColumn.valueOf(s)))),
+          if (showResultColumn) DataCell(_ResultChip(result: s.result)),
           DataCell(
             Row(
               children: [
                 IconButton(
                   tooltip: 'View detail',
-                  icon: const Icon(Icons.visibility, size: 20, color: Colors.blue),
+                  icon: const Icon(
+                    Icons.visibility,
+                    size: 20,
+                    color: Colors.blue,
+                  ),
                   onPressed: () => GradeDetailDialog.show(context, s),
                 ),
                 IconButton(
@@ -240,7 +290,7 @@ class _GradeTableCardState extends State<GradeTableCard> {
                               dataRowMaxHeight: 50,
                               columnSpacing: 14,
                               showCheckboxColumn: false,
-                              sortColumnIndex: _sortColumnIndex,
+                              sortColumnIndex: activeSortColumnIndex,
                               sortAscending: _sortAscending,
                               columns: columns,
                               rows: rows,
@@ -273,8 +323,8 @@ class _ResultChip extends StatelessWidget {
         color: !hasResult
             ? const Color(0xFFF3F4F6)
             : isPass
-                ? const Color(0xFFEAFBF1)
-                : const Color(0xFFFFECEC),
+            ? const Color(0xFFEAFBF1)
+            : const Color(0xFFFFECEC),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -283,11 +333,23 @@ class _ResultChip extends StatelessWidget {
           color: !hasResult
               ? const Color(0xFF6B7280)
               : isPass
-                  ? const Color(0xFF1D7A46)
-                  : const Color(0xFFD93C3C),
+              ? const Color(0xFF1D7A46)
+              : const Color(0xFFD93C3C),
           fontWeight: FontWeight.w700,
         ),
       ),
     );
   }
+}
+
+class _ScoreColumn {
+  const _ScoreColumn({
+    required this.label,
+    required this.width,
+    required this.valueOf,
+  });
+
+  final String label;
+  final double width;
+  final double? Function(StudentGrade student) valueOf;
 }
