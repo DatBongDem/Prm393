@@ -24,6 +24,8 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
   String? _selectedClass;
 
   List<StudentGrade> _rows = [];
+  List<StudentGrade> _aiResultRows = [];
+  bool _isShowingAiResult = false;
 
   late final GradeApiService _api = GradeApiService(
     baseUrl: "http://localhost:8080",
@@ -50,6 +52,7 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
             ? response.classes[_selectedClass!] ?? []
             : [];
 
+        _clearAiResult();
         _showTable = true;
       });
     } catch (e) {
@@ -69,7 +72,20 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
       _selectedClass = value;
 
       _rows = _apiCache[value] ?? [];
+      _clearAiResult();
     });
+  }
+
+  void _showAiResult(List<StudentGrade> students) {
+    setState(() {
+      _aiResultRows = students;
+      _isShowingAiResult = true;
+    });
+  }
+
+  void _clearAiResult() {
+    _aiResultRows = [];
+    _isShowingAiResult = false;
   }
 
   void _exportFile() {
@@ -102,9 +118,9 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
           const SnackBar(content: Text("Student created successfully!")),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to create student: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to create student: $e")));
       }
     }
   }
@@ -118,9 +134,14 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
 
     if (request != null) {
       try {
-        final updatedStudent = await _api.updateStudent(student.rollNumber, request);
+        final updatedStudent = await _api.updateStudent(
+          student.rollNumber,
+          request,
+        );
         setState(() {
-          final index = _rows.indexWhere((s) => s.rollNumber == student.rollNumber);
+          final index = _rows.indexWhere(
+            (s) => s.rollNumber == student.rollNumber,
+          );
           if (index != -1) {
             _rows[index] = updatedStudent;
             _apiCache[_selectedClass!] = _rows;
@@ -130,9 +151,9 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
           const SnackBar(content: Text("Student updated successfully!")),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to update student: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to update student: $e")));
       }
     }
   }
@@ -142,9 +163,14 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Confirm Delete"),
-        content: Text("Are you sure you want to delete student ${student.fullName}?"),
+        content: Text(
+          "Are you sure you want to delete student ${student.fullName}?",
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
@@ -164,9 +190,9 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
           const SnackBar(content: Text("Student deleted successfully!")),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to delete student: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to delete student: $e")));
       }
     }
   }
@@ -175,10 +201,16 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
   Widget build(BuildContext context) {
     final mainContent = _showTable
         ? GradeTableCard(
-            className: _selectedClass ?? '',
-            rows: _rows,
+            className: _isShowingAiResult
+                ? 'AI Search Result'
+                : _selectedClass ?? '',
+            rows: _isShowingAiResult ? _aiResultRows : _rows,
             onEdit: _editStudent,
             onDelete: _deleteStudent,
+            isAiResult: _isShowingAiResult,
+            onClearAiResult: () {
+              setState(_clearAiResult);
+            },
           )
         : const EmptyStateCard();
     return Scaffold(
@@ -210,7 +242,12 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
                           Expanded(child: mainContent),
                           if (_showTable) ...[
                             const SizedBox(width: 12),
-                            const SizedBox(width: 300, child: AiPannelCard()),
+                            SizedBox(
+                              width: 300,
+                              child: AiPannelCard(
+                                onStudentsFound: _showAiResult,
+                              ),
+                            ),
                           ],
                         ],
                       );
@@ -221,7 +258,10 @@ class _GradeManagementPageState extends State<GradeManagementPage> {
                         Expanded(child: mainContent),
                         if (_showTable) ...[
                           const SizedBox(height: 12),
-                          const SizedBox(height: 220, child: AiPannelCard()),
+                          SizedBox(
+                            height: 220,
+                            child: AiPannelCard(onStudentsFound: _showAiResult),
+                          ),
                         ],
                       ],
                     );

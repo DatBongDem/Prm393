@@ -1,10 +1,16 @@
 import 'package:fe/src/feature/grade_ui/data/ai_chat_api_service.dart';
+import 'package:fe/src/feature/grade_ui/domain/grade_models.dart';
 import 'package:flutter/material.dart';
 
 class AiPannelCard extends StatefulWidget {
-  const AiPannelCard({super.key, this.baseUrl = 'http://localhost:8080'});
+  const AiPannelCard({
+    super.key,
+    required this.onStudentsFound,
+    this.baseUrl = 'http://localhost:8080',
+  });
 
   final String baseUrl;
+  final ValueChanged<List<StudentGrade>> onStudentsFound;
 
   @override
   State<AiPannelCard> createState() => _AiPannelCardState();
@@ -39,12 +45,15 @@ class _AiPannelCardState extends State<AiPannelCard> {
     _scrollToBottom();
 
     try {
-      final answer = await _api.ask(message);
+      final result = await _api.ask(message);
       if (!mounted) return;
 
       setState(() {
-        _messages.add(_ChatEntry(text: answer, isUser: false));
+        _messages.add(_ChatEntry(text: result.message, isUser: false));
       });
+      if (result.students.isNotEmpty) {
+        widget.onStudentsFound(result.students);
+      }
       _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
