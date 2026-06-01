@@ -3,6 +3,7 @@ package be.business;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -84,8 +85,10 @@ public class GradeService {
                 ? readXmlSpreadsheet(bytes, fileInfo)
                 : readPoiWorkbook(bytes, fileInfo);
 
+        normalizeTeacherGrade(teacherGrade);
+
         Map<String, List<StudentGrade>> classes =
-                toStudentClasses(teacherGrade);
+                toStudentClasses(teacherGrade, false);
 
         latestTeacherGrade = teacherGrade;
         latestClasses = classes;
@@ -100,20 +103,24 @@ public class GradeService {
             String originalFilename
     ) throws Exception {
 
-        String encrypted =
-                new String(inputStream.readAllBytes(), StandardCharsets.UTF_8)
-                        .trim();
+        byte[] bytes =
+                inputStream.readAllBytes();
 
         TeacherGradeFile teacherGrade =
-                objectMapper.readValue(
-                        decryptString(encrypted),
+                BinaryTeacherGradeReader.canRead(bytes)
+                        ? BinaryTeacherGradeReader.read(bytes)
+                        : objectMapper.readValue(
+                        decryptString(
+                                new String(bytes, StandardCharsets.UTF_8)
+                                        .trim()
+                        ),
                         TeacherGradeFile.class
                 );
 
         normalizeTeacherGrade(teacherGrade);
 
         Map<String, List<StudentGrade>> classes =
-                toStudentClasses(teacherGrade);
+                toStudentClasses(teacherGrade, true);
 
         latestTeacherGrade = teacherGrade;
         latestClasses = classes;
@@ -123,7 +130,7 @@ public class GradeService {
         return classes;
     }
 
-    public String generateFGContent(
+    public byte[] generateFGContent(
             Map<String, List<StudentGrade>> data
     ) throws Exception {
 
@@ -131,16 +138,32 @@ public class GradeService {
             throw new IllegalArgumentException("No grade data available");
         }
 
+        latestClasses = data;
+        refreshTeacherGradeFromClasses();
+
         TeacherGradeFile teacherGrade = latestTeacherGrade != null
                 ? latestTeacherGrade
                 : buildTeacherGradeFromClasses(data);
 
-        return encryptString(objectMapper.writeValueAsString(teacherGrade));
+        normalizeTeacherGrade(teacherGrade);
+
+        return BinaryTeacherGradeWriter.write(teacherGrade);
     }
 
     public void refreshTeacherGradeFromClasses() {
         if (latestClasses == null || latestClasses.isEmpty()) {
             latestTeacherGrade = null;
+            return;
+        }
+
+        if (latestTeacherGrade != null
+                && latestTeacherGrade.getSubjectClassGrades() != null
+                && !latestTeacherGrade.getSubjectClassGrades().isEmpty()) {
+
+            syncTeacherGradeFromClasses(
+                    latestTeacherGrade,
+                    latestClasses
+            );
             return;
         }
 
@@ -151,77 +174,68 @@ public class GradeService {
             StudentGradeRequest request
     ) {
 
-        double finalUsed =
-                request.getFinalExamResit() > 0
-                        ? request.getFinalExamResit()
-                        : request.getFinalExam();
+        Double finalExam =
+                roundScore(request.getFinalExam());
+        Double finalResit =
+                roundScore(request.getFinalExamResit());
+        Double practical =
+                roundScore(request.getPracticalExam());
+        Double pt1 =
+                roundScore(request.getPt1());
+        Double pt2 =
+                roundScore(request.getPt2());
+        Double pt3 =
+                roundScore(request.getPt3());
+        Double project =
+                roundScore(request.getProject());
 
-        double practicalUsed =
-                request.getPracticalExam();
+        Double finalUsed =
+                finalResit != null
+                        ? finalResit
+                        : finalExam;
 
-        double progressAvg =
-                (
-                        request.getPt1()
-                                + request.getPt2()
-                                + request.getPt3()
-                ) / 3.0;
+        Double total =
+                null;
+        String resultStatus =
+                null;
 
-        double total =
-                finalUsed * 0.30
-                        + practicalUsed * 0.25
-                        + progressAvg * 0.15
-                        + request.getProject() * 0.30;
+        if (finalUsed != null
+                && practical != null
+                && pt1 != null
+                && pt2 != null
+                && pt3 != null
+                && project != null) {
 
-        total = round(total);
+            double progressAvg =
+                    (pt1 + pt2 + pt3) / 3.0;
 
-        String resultStatus;
-        String comment;
+            total =
+                    round(
+                            finalUsed * 0.30
+                                    + practical * 0.25
+                                    + progressAvg * 0.15
+                                    + project * 0.30
+                    );
 
-        if (total >= 5
-                && finalUsed >= 4
-                && practicalUsed >= 4) {
-
-            resultStatus = "PASS";
-
-            comment =
-                    "Congratulations, you passed the course.";
-
-        } else {
-
-            resultStatus = "FAIL";
-
-            List<String> reasons =
-                    new ArrayList<>();
-
-            if (total < 5) {
-
-                reasons.add(
-                        "Your total score is below 5."
-                );
-            }
-
-            if (finalUsed < 4) {
-
-                reasons.add(
-                        "Your Final Exam score is below 4."
-                );
-            }
-
-            if (practicalUsed < 4) {
-
-                reasons.add(
-                        "Your Practical Exam score is below 4."
-                );
-            }
-
-            comment =
-                    String.join(" ", reasons);
+            resultStatus =
+                    total >= 5
+                            && finalUsed >= 4
+                            && practical >= 4
+                            ? "PASS"
+                            : "FAIL";
         }
 
         StudentGrade student =
                 new StudentGrade();
 
-        student.setClassName(request.getClassName());
+        SubjectClassParts subjectClassParts =
+                subjectClassParts(
+                        request.getSubject(),
+                        request.getClassName()
+                );
+
+        student.setSubject(subjectClassParts.subject());
+        student.setClassName(subjectClassParts.className());
 
         student.setRollNumber(request.getRollNumber());
         student.setEmail(request.getEmail());
@@ -231,38 +245,126 @@ public class GradeService {
         student.setExamDate(request.getExamDate());
         student.setExamNote(request.getExamNote());
 
-        student.setFinalExam(request.getFinalExam());
+        student.setFinalExam(finalExam);
         student.setFinalComment(request.getFinalExamComment());
 
-        student.setFinalResit(request.getFinalExamResit());
-        student.setFinalResitComment(
-                request.getFinalExamResitComment()
-        );
+        student.setFinalResit(finalResit);
+        student.setFinalResitComment(request.getFinalExamResitComment());
 
-        student.setPractical(request.getPracticalExam());
-        student.setPracticalComment(
-                request.getPracticalExamComment()
-        );
+        student.setPractical(practical);
+        student.setPracticalComment(request.getPracticalExamComment());
 
-        student.setPt1(request.getPt1());
+        student.setPt1(pt1);
         student.setPt1Comment(request.getPt1Comment());
 
-        student.setPt2(request.getPt2());
+        student.setPt2(pt2);
         student.setPt2Comment(request.getPt2Comment());
 
-        student.setPt3(request.getPt3());
+        student.setPt3(pt3);
         student.setPt3Comment(request.getPt3Comment());
 
-        student.setProject(request.getProject());
-        student.setProjectComment(
-                request.getProjectComment()
-        );
+        student.setProject(project);
+        student.setProjectComment(request.getProjectComment());
 
         student.setTotal(total);
         student.setResult(resultStatus);
-        student.setComment(comment);
+        student.setComment(null);
 
         return student;
+    }
+
+    public String resolveClassKey(StudentGrade student) {
+        String subject =
+                nullToEmpty(student.getSubject()).trim();
+        String className =
+                nullToEmpty(student.getClassName()).trim();
+        String subjectClassKey =
+                subjectClassKey(subject, className);
+
+        if (latestClasses == null || latestClasses.isEmpty()) {
+            return !subjectClassKey.isBlank()
+                    ? subjectClassKey
+                    : className;
+        }
+
+        if (!subjectClassKey.isBlank()
+                && latestClasses.containsKey(subjectClassKey)) {
+            return subjectClassKey;
+        }
+
+        if (!className.isBlank()
+                && latestClasses.containsKey(className)) {
+            return className;
+        }
+
+        for (Map.Entry<String, List<StudentGrade>> entry
+                : latestClasses.entrySet()) {
+
+            if (matchesClassKey(
+                    entry.getKey(),
+                    subject,
+                    className
+            )) {
+                return entry.getKey();
+            }
+
+            if (matchesStudentClass(
+                    entry.getValue(),
+                    subject,
+                    className
+            )) {
+                return entry.getKey();
+            }
+        }
+
+        return !subjectClassKey.isBlank()
+                ? subjectClassKey
+                : className;
+    }
+
+    public StudentGradeRequest toStudentGradeRequest(
+            StudentGrade student
+    ) {
+
+        StudentGradeRequest request =
+                new StudentGradeRequest();
+
+        request.setSubject(student.getSubject());
+        request.setClassName(student.getClassName());
+        request.setRollNumber(student.getRollNumber());
+        request.setEmail(student.getEmail());
+        request.setMemberCode(student.getMemberCode());
+        request.setFullName(student.getFullName());
+
+        request.setExamDate(student.getExamDate());
+        request.setExamNote(student.getExamNote());
+
+        request.setFinalExam(student.getFinalExam());
+        request.setFinalExamComment(student.getFinalComment());
+
+        request.setFinalExamResit(student.getFinalResit());
+        request.setFinalExamResitComment(
+                student.getFinalResitComment()
+        );
+
+        request.setPracticalExam(student.getPractical());
+        request.setPracticalExamComment(
+                student.getPracticalComment()
+        );
+
+        request.setPt1(student.getPt1());
+        request.setPt1Comment(student.getPt1Comment());
+
+        request.setPt2(student.getPt2());
+        request.setPt2Comment(student.getPt2Comment());
+
+        request.setPt3(student.getPt3());
+        request.setPt3Comment(student.getPt3Comment());
+
+        request.setProject(student.getProject());
+        request.setProjectComment(student.getProjectComment());
+
+        return request;
     }
 
     private TeacherGradeFile readXmlSpreadsheet(
@@ -317,6 +419,8 @@ public class GradeService {
 
         Map<String, FgSubjectClassGrade> subjectClasses =
                 new LinkedHashMap<>();
+        boolean useSheetNameAsClass =
+                worksheets.getLength() > 1;
 
         for (int i = 0; i < worksheets.getLength(); i++) {
             Element worksheet =
@@ -347,7 +451,8 @@ public class GradeService {
                     subjectClasses,
                     fileInfo,
                     sheetName,
-                    rows
+                    rows,
+                    useSheetNameAsClass
             );
         }
 
@@ -372,6 +477,8 @@ public class GradeService {
         )) {
             DataFormatter formatter =
                     new DataFormatter(Locale.US);
+            boolean useSheetNameAsClass =
+                    workbook.getNumberOfSheets() > 1;
 
             for (int s = 0; s < workbook.getNumberOfSheets(); s++) {
                 org.apache.poi.ss.usermodel.Sheet sheet =
@@ -400,7 +507,8 @@ public class GradeService {
                         subjectClasses,
                         fileInfo,
                         sheet.getSheetName(),
-                        rows
+                        rows,
+                        useSheetNameAsClass
                 );
             }
         }
@@ -415,7 +523,8 @@ public class GradeService {
             Map<String, FgSubjectClassGrade> subjectClasses,
             FileInfo fileInfo,
             String sheetName,
-            List<List<String>> rows
+            List<List<String>> rows,
+            boolean useSheetNameAsClass
     ) {
 
         List<List<String>> nonBlankRows =
@@ -450,7 +559,9 @@ public class GradeService {
             }
 
             String className =
-                    getCell(row, headerMap, "Class");
+                    useSheetNameAsClass && !blank(sheetName)
+                            ? sheetName
+                            : getCell(row, headerMap, "Class");
 
             if (className.isBlank()) {
                 className = !blank(sheetName)
@@ -462,6 +573,14 @@ public class GradeService {
                     !blank(fileInfo.subjectCode())
                             ? fileInfo.subjectCode()
                             : firstSubjectOrDefault(teacherGrade);
+
+            SubjectClassParts subjectClassParts =
+                    subjectClassParts(subject, className);
+
+            subject =
+                    subjectClassParts.subject();
+            className =
+                    subjectClassParts.className();
 
             String key =
                     normalize(subject) + "/" + normalize(className);
@@ -501,13 +620,46 @@ public class GradeService {
                 new FgStudent();
 
         student.setRoll(
-                getCell(row, headerMap, "RollNumber", "Roll")
+                emptyToNull(getCell(row, headerMap, "RollNumber", "Roll"))
         );
         student.setName(
-                getCell(row, headerMap, "FullName", "Name")
+                emptyToNull(getCell(row, headerMap, "FullName", "Name"))
+        );
+        student.setEmail(
+                emptyToNull(getCell(row, headerMap, "Email"))
+        );
+        student.setMemberCode(
+                emptyToNull(getCell(row, headerMap, "MemberCode"))
+        );
+        student.setExamDate(
+                emptyToNull(getCell(row, headerMap, "ExamDate"))
+        );
+        student.setExamNote(
+                emptyToNull(getCell(row, headerMap, "ExamNote"))
+        );
+        student.setFinalExamComment(
+                excelComment(row, headerMap, "Final Exam")
+        );
+        student.setFinalExamResitComment(
+                excelComment(row, headerMap, "Final Exam Resit")
+        );
+        student.setPracticalExamComment(
+                excelComment(row, headerMap, "Practical Exam")
+        );
+        student.setProgressTest1Comment(
+                excelComment(row, headerMap, "Progress Test 1")
+        );
+        student.setProgressTest2Comment(
+                excelComment(row, headerMap, "Progress Test 2")
+        );
+        student.setProgressTest3Comment(
+                excelComment(row, headerMap, "Progress Test 3")
+        );
+        student.setProjectComment(
+                excelComment(row, headerMap, "Project")
         );
         student.setComment(
-                buildStudentComment(row, headerMap, components)
+                buildStudentComment(row, headerMap)
         );
 
         List<FgGradeComponent> grades =
@@ -590,7 +742,8 @@ public class GradeService {
     }
 
     private Map<String, List<StudentGrade>> toStudentClasses(
-            TeacherGradeFile teacherGrade
+            TeacherGradeFile teacherGrade,
+            boolean inferStudentAccount
     ) {
 
         Map<String, List<StudentGrade>> classes =
@@ -605,11 +758,15 @@ public class GradeService {
                 : teacherGrade.getSubjectClassGrades()) {
 
             String className =
-                    nullToEmpty(subjectClass.getClassName());
+                    subjectClass.getClassName();
+            String subject =
+                    subjectClass.getSubject();
+            String classKey =
+                    subjectClassKey(subjectClass);
 
             List<StudentGrade> students =
                     classes.computeIfAbsent(
-                            className,
+                            classKey,
                             ignored -> new ArrayList<>()
                     );
 
@@ -621,33 +778,68 @@ public class GradeService {
                 StudentGradeRequest request =
                         new StudentGradeRequest();
 
+                request.setSubject(subject);
                 request.setClassName(className);
-                request.setRollNumber(nullToEmpty(fgStudent.getRoll()));
-                request.setFullName(nullToEmpty(fgStudent.getName()));
+                request.setRollNumber(fgStudent.getRoll());
+                request.setEmail(fgStudent.getEmail());
+                request.setMemberCode(fgStudent.getMemberCode());
+                request.setFullName(fgStudent.getName());
+                request.setExamDate(fgStudent.getExamDate());
+                request.setExamNote(fgStudent.getExamNote());
+                request.setFinalExamComment(
+                        fgStudent.getFinalExamComment()
+                );
+                request.setFinalExamResitComment(
+                        fgStudent.getFinalExamResitComment()
+                );
+                request.setPracticalExamComment(
+                        fgStudent.getPracticalExamComment()
+                );
+                request.setPt1Comment(
+                        fgStudent.getProgressTest1Comment()
+                );
+                request.setPt2Comment(
+                        fgStudent.getProgressTest2Comment()
+                );
+                request.setPt3Comment(
+                        fgStudent.getProgressTest3Comment()
+                );
+                request.setProjectComment(fgStudent.getProjectComment());
+
+                if (inferStudentAccount) {
+                    inferStudentAccount(request);
+                }
 
                 Map<String, Float> gradeMap =
                         toGradeMap(fgStudent);
 
                 request.setFinalExam(
-                        gradeOrZero(gradeMap, "Final Exam")
+                        gradeOrNull(gradeMap, "Final Exam")
                 );
                 request.setFinalExamResit(
-                        gradeOrZero(gradeMap, "Final Exam Resit")
+                        gradeOrNull(gradeMap, "Final Exam Resit")
                 );
                 request.setPracticalExam(
-                        gradeOrZero(gradeMap, "Practical Exam")
+                        gradeOrNull(gradeMap, "Practical Exam")
                 );
                 request.setPt1(
-                        gradeOrZero(gradeMap, "Progress Test 1")
+                        gradeOrNull(gradeMap, "Progress Test 1")
                 );
                 request.setPt2(
-                        gradeOrZero(gradeMap, "Progress Test 2")
+                        gradeOrNull(gradeMap, "Progress Test 2")
                 );
                 request.setPt3(
-                        gradeOrZero(gradeMap, "Progress Test 3")
+                        gradeOrNull(gradeMap, "Progress Test 3")
                 );
                 request.setProject(
-                        gradeOrZero(gradeMap, "Project")
+                        firstGradeOrNull(
+                                gradeMap,
+                                "Project",
+                                "Group Project",
+                                "Course Project",
+                                "Final Project",
+                                "Final Project Presentation"
+                        )
                 );
 
                 applyFgCommentToRequest(
@@ -658,6 +850,10 @@ public class GradeService {
                 StudentGrade student =
                         buildStudent(request);
 
+                student.setGradeComponents(
+                        copyGradeComponents(fgStudent.getGrades())
+                );
+
                 if (!blank(fgStudent.getComment())) {
                     student.setComment(fgStudent.getComment());
                 }
@@ -667,6 +863,347 @@ public class GradeService {
         }
 
         return classes;
+    }
+
+    private String subjectClassKey(FgSubjectClassGrade subjectClass) {
+        String subject =
+                subjectClass.getSubject();
+        String className =
+                subjectClass.getClassName();
+
+        return subjectClassKey(subject, className);
+    }
+
+    private String subjectClassKey(
+            String subject,
+            String className
+    ) {
+        String cleanSubject =
+                nullToEmpty(subject).trim();
+        String cleanClassName =
+                nullToEmpty(className).trim();
+
+        if (cleanSubject.isBlank()) {
+            return cleanClassName;
+        }
+
+        if (cleanClassName.isBlank()) {
+            return cleanSubject;
+        }
+
+        return cleanSubject + "_" + cleanClassName;
+    }
+
+    private boolean matchesClassKey(
+            String key,
+            String subject,
+            String className
+    ) {
+
+        SubjectClassParts parts =
+                splitCombinedSubjectClass(key);
+
+        if (parts == null) {
+            return false;
+        }
+
+        boolean sameClass =
+                Objects.equals(
+                        normalize(parts.className()),
+                        normalize(className)
+                );
+        boolean sameSubject =
+                blank(subject)
+                        || Objects.equals(
+                                normalize(parts.subject()),
+                                normalize(subject)
+                        );
+
+        return sameClass && sameSubject;
+    }
+
+    private boolean matchesStudentClass(
+            List<StudentGrade> students,
+            String subject,
+            String className
+    ) {
+
+        if (students == null) {
+            return false;
+        }
+
+        for (StudentGrade student : students) {
+            boolean sameClass =
+                    Objects.equals(
+                            normalize(student.getClassName()),
+                            normalize(className)
+                    );
+            boolean sameSubject =
+                    blank(subject)
+                            || blank(student.getSubject())
+                            || Objects.equals(
+                                    normalize(student.getSubject()),
+                                    normalize(subject)
+                            );
+
+            if (sameClass && sameSubject) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void normalizeSubjectClass(
+            FgSubjectClassGrade subjectClass
+    ) {
+
+        SubjectClassParts parts =
+                subjectClassParts(
+                        subjectClass.getSubject(),
+                        subjectClass.getClassName()
+                );
+
+        subjectClass.setSubject(parts.subject());
+        subjectClass.setClassName(parts.className());
+    }
+
+    private SubjectClassParts subjectClassParts(
+            String subject,
+            String className
+    ) {
+
+        String cleanedSubject =
+                emptyToNull(nullToEmpty(subject).trim());
+        String cleanedClassName =
+                emptyToNull(nullToEmpty(className).trim());
+
+        SubjectClassParts fromClassName =
+                splitCombinedSubjectClass(cleanedClassName);
+
+        if (fromClassName != null) {
+            return fromClassName;
+        }
+
+        return new SubjectClassParts(cleanedSubject, cleanedClassName);
+    }
+
+    private SubjectClassParts splitCombinedSubjectClass(String value) {
+        if (blank(value)) {
+            return null;
+        }
+
+        int separator =
+                value.indexOf('_');
+
+        if (separator <= 0 || separator == value.length() - 1) {
+            return null;
+        }
+
+        String subject =
+                value.substring(0, separator).trim();
+        String className =
+                value.substring(separator + 1).trim();
+
+        if (!looksLikeSubjectCode(subject) || className.isBlank()) {
+            return null;
+        }
+
+        return new SubjectClassParts(subject, className);
+    }
+
+    private boolean looksLikeSubjectCode(String value) {
+        return !blank(value)
+                && value.trim()
+                .matches("[A-Za-z]{2,5}\\d{3}[A-Za-z]?");
+    }
+
+    private List<FgGradeComponent> copyGradeComponents(
+            List<FgGradeComponent> source
+    ) {
+
+        if (source == null) {
+            return null;
+        }
+
+        List<FgGradeComponent> copy =
+                new ArrayList<>();
+
+        for (FgGradeComponent grade : source) {
+            FgGradeComponent item =
+                    new FgGradeComponent();
+
+            item.setComponent(grade.getComponent());
+            item.setGrade(grade.getGrade());
+            copy.add(item);
+        }
+
+        return copy;
+    }
+
+    private void syncTeacherGradeFromClasses(
+            TeacherGradeFile teacherGrade,
+            Map<String, List<StudentGrade>> data
+    ) {
+
+        Map<String, FgSubjectClassGrade> existingSubjectClasses =
+                existingSubjectClassLookup(teacherGrade);
+        List<FgSubjectClassGrade> syncedSubjectClasses =
+                new ArrayList<>();
+
+        for (Map.Entry<String, List<StudentGrade>> entry
+                : data.entrySet()) {
+
+            List<StudentGrade> classStudents =
+                    entry.getValue() == null
+                            ? List.of()
+                            : entry.getValue();
+            String className =
+                    firstStudentClassName(classStudents, entry.getKey());
+            String subject =
+                    firstStudentSubject(
+                            classStudents,
+                            latestSubjectForClass(className)
+                    );
+            SubjectClassParts parts =
+                    subjectClassParts(subject, className);
+            FgSubjectClassGrade subjectClass =
+                    existingSubjectClass(
+                            existingSubjectClasses,
+                            entry.getKey(),
+                            parts
+                    );
+
+            if (subjectClass == null) {
+                subjectClass = new FgSubjectClassGrade();
+            }
+
+            subjectClass.setSubject(parts.subject());
+            subjectClass.setClassName(parts.className());
+
+            Map<String, FgStudent> previousStudents =
+                    previousStudentsByRoll(subjectClass);
+            List<String> components =
+                    subjectClass.getComponents() == null
+                            || subjectClass.getComponents().isEmpty()
+                            ? DEFAULT_COMPONENTS
+                            : subjectClass.getComponents();
+            List<FgStudent> students =
+                    new ArrayList<>();
+
+            for (StudentGrade student : classStudents) {
+                FgStudent previous =
+                        previousStudents.get(
+                                normalize(student.getRollNumber())
+                        );
+
+                students.add(
+                        toFgStudent(
+                                student,
+                                components,
+                                previous
+                        )
+                );
+            }
+
+            subjectClass.setComponents(new ArrayList<>(components));
+            subjectClass.setStudents(students);
+            syncedSubjectClasses.add(subjectClass);
+        }
+
+        teacherGrade.setSubjectClassGrades(syncedSubjectClasses);
+        normalizeTeacherGrade(teacherGrade);
+        sortStudents(teacherGrade);
+    }
+
+    private Map<String, FgSubjectClassGrade> existingSubjectClassLookup(
+            TeacherGradeFile teacherGrade
+    ) {
+
+        Map<String, FgSubjectClassGrade> existing =
+                new HashMap<>();
+
+        if (teacherGrade.getSubjectClassGrades() == null) {
+            return existing;
+        }
+
+        for (FgSubjectClassGrade subjectClass
+                : teacherGrade.getSubjectClassGrades()) {
+
+            putSubjectClassLookup(
+                    existing,
+                    subjectClassKey(subjectClass),
+                    subjectClass
+            );
+            putSubjectClassLookup(
+                    existing,
+                    subjectClass.getClassName(),
+                    subjectClass
+            );
+        }
+
+        return existing;
+    }
+
+    private void putSubjectClassLookup(
+            Map<String, FgSubjectClassGrade> existing,
+            String key,
+            FgSubjectClassGrade subjectClass
+    ) {
+
+        String normalized =
+                normalize(key);
+
+        if (!normalized.isBlank()) {
+            existing.putIfAbsent(normalized, subjectClass);
+        }
+    }
+
+    private FgSubjectClassGrade existingSubjectClass(
+            Map<String, FgSubjectClassGrade> existing,
+            String classKey,
+            SubjectClassParts parts
+    ) {
+
+        FgSubjectClassGrade subjectClass =
+                existing.get(normalize(classKey));
+
+        if (subjectClass != null) {
+            return subjectClass;
+        }
+
+        FgSubjectClassGrade probe =
+                new FgSubjectClassGrade();
+        probe.setSubject(parts.subject());
+        probe.setClassName(parts.className());
+
+        subjectClass =
+                existing.get(normalize(subjectClassKey(probe)));
+
+        if (subjectClass != null) {
+            return subjectClass;
+        }
+
+        return existing.get(normalize(parts.className()));
+    }
+
+    private Map<String, FgStudent> previousStudentsByRoll(
+            FgSubjectClassGrade subjectClass
+    ) {
+
+        if (subjectClass.getStudents() == null) {
+            return Map.of();
+        }
+
+        return subjectClass.getStudents().stream()
+                .filter(student -> !blank(student.getRoll()))
+                .collect(
+                        Collectors.toMap(
+                                student -> normalize(student.getRoll()),
+                                student -> student,
+                                (left, right) -> left
+                        )
+                );
     }
 
     private TeacherGradeFile buildTeacherGradeFromClasses(
@@ -686,15 +1223,26 @@ public class GradeService {
 
             FgSubjectClassGrade subjectClass =
                     new FgSubjectClassGrade();
+            List<StudentGrade> sourceStudents =
+                    entry.getValue() == null
+                            ? List.of()
+                            : entry.getValue();
+            String className =
+                    firstStudentClassName(sourceStudents, entry.getKey());
+            String subject =
+                    firstStudentSubject(
+                            sourceStudents,
+                            latestSubjectForClass(className)
+                    );
+            SubjectClassParts subjectClassParts =
+                    subjectClassParts(subject, className);
 
-            subjectClass.setSubject(
-                    latestSubjectForClass(entry.getKey())
-            );
-            subjectClass.setClassName(entry.getKey());
+            subjectClass.setSubject(subjectClassParts.subject());
+            subjectClass.setClassName(subjectClassParts.className());
             subjectClass.setComponents(new ArrayList<>(DEFAULT_COMPONENTS));
 
             List<StudentGrade> sortedStudents =
-                    new ArrayList<>(entry.getValue());
+                    new ArrayList<>(sourceStudents);
 
             sortedStudents.sort((left, right) ->
                     nullToEmpty(left.getRollNumber())
@@ -714,23 +1262,89 @@ public class GradeService {
         return teacherGrade;
     }
 
+    private String firstStudentClassName(
+            List<StudentGrade> students,
+            String fallback
+    ) {
+
+        for (StudentGrade student : students) {
+            if (!blank(student.getClassName())) {
+                return student.getClassName();
+            }
+        }
+
+        return fallback;
+    }
+
+    private String firstStudentSubject(
+            List<StudentGrade> students,
+            String fallback
+    ) {
+
+        for (StudentGrade student : students) {
+            if (!blank(student.getSubject())) {
+                return student.getSubject();
+            }
+        }
+
+        return fallback;
+    }
+
     private FgStudent toFgStudent(StudentGrade student) {
+        return toFgStudent(
+                student,
+                DEFAULT_COMPONENTS,
+                null
+        );
+    }
+
+    private FgStudent toFgStudent(
+            StudentGrade student,
+            List<String> components,
+            FgStudent previous
+    ) {
         FgStudent fgStudent =
                 new FgStudent();
 
-        fgStudent.setRoll(nullToEmpty(student.getRollNumber()));
-        fgStudent.setName(nullToEmpty(student.getFullName()));
+        fgStudent.setRoll(student.getRollNumber());
+        fgStudent.setName(student.getFullName());
+        fgStudent.setEmail(student.getEmail());
+        fgStudent.setMemberCode(student.getMemberCode());
+        fgStudent.setExamDate(student.getExamDate());
+        fgStudent.setExamNote(student.getExamNote());
+        fgStudent.setFinalExamComment(student.getFinalComment());
+        fgStudent.setFinalExamResitComment(
+                student.getFinalResitComment()
+        );
+        fgStudent.setPracticalExamComment(student.getPracticalComment());
+        fgStudent.setProgressTest1Comment(student.getPt1Comment());
+        fgStudent.setProgressTest2Comment(student.getPt2Comment());
+        fgStudent.setProgressTest3Comment(student.getPt3Comment());
+        fgStudent.setProjectComment(student.getProjectComment());
         fgStudent.setComment(buildCombinedComment(student));
+
+        Map<String, Float> previousGrades =
+                previous == null
+                        ? Map.of()
+                        : toGradeMap(previous);
 
         List<FgGradeComponent> grades =
                 new ArrayList<>();
 
-        for (String component : DEFAULT_COMPONENTS) {
+        for (String component : components) {
             FgGradeComponent grade =
                     new FgGradeComponent();
 
             grade.setComponent(component);
-            grade.setGrade(componentGrade(student, component));
+
+            Float value =
+                    componentGrade(student, component);
+
+            if (value == null) {
+                value = previousGrades.get(normalize(component));
+            }
+
+            grade.setGrade(value);
             grades.add(grade);
         }
 
@@ -751,57 +1365,19 @@ public class GradeService {
             case "progresstest1" -> toFloat(student.getPt1());
             case "progresstest2" -> toFloat(student.getPt2());
             case "progresstest3" -> toFloat(student.getPt3());
-            case "project" -> toFloat(student.getProject());
+            case "project",
+                    "groupproject",
+                    "courseproject",
+                    "finalproject",
+                    "finalprojectpresentation" ->
+                    toFloat(student.getProject());
             default -> null;
         };
     }
 
     private String buildCombinedComment(StudentGrade student) {
-        List<String> comments =
-                new ArrayList<>();
-
-        addComment(
-                comments,
-                "Final Exam",
-                student.getFinalComment()
-        );
-        addComment(
-                comments,
-                "Final Exam Resit",
-                student.getFinalResitComment()
-        );
-        addComment(
-                comments,
-                "Practical Exam",
-                student.getPracticalComment()
-        );
-        addComment(
-                comments,
-                "Progress Test 1",
-                student.getPt1Comment()
-        );
-        addComment(
-                comments,
-                "Progress Test 2",
-                student.getPt2Comment()
-        );
-        addComment(
-                comments,
-                "Progress Test 3",
-                student.getPt3Comment()
-        );
-        addComment(
-                comments,
-                "Project",
-                student.getProjectComment()
-        );
-
-        if (!comments.isEmpty()) {
-            return String.join("; ", comments);
-        }
-
         return blank(student.getComment())
-                ? null
+                ? ""
                 : student.getComment();
     }
 
@@ -848,10 +1424,84 @@ public class GradeService {
         }
     }
 
+    private void inferStudentAccount(StudentGradeRequest request) {
+        String accountCode =
+                studentAccountCode(
+                        request.getFullName(),
+                        request.getRollNumber()
+                );
+
+        if (blank(accountCode)) {
+            return;
+        }
+
+        if (blank(request.getMemberCode())) {
+            request.setMemberCode(accountCode);
+        }
+
+        if (blank(request.getEmail())) {
+            request.setEmail(accountCode + "@fpt.edu.vn");
+        }
+    }
+
+    private String studentAccountCode(
+            String fullName,
+            String rollNumber
+    ) {
+
+        String normalizedName =
+                asciiLower(fullName)
+                        .replaceAll("[^a-z\\s]", " ")
+                        .trim();
+        String normalizedRoll =
+                asciiLower(rollNumber)
+                        .replaceAll("[^a-z0-9]", "");
+
+        if (normalizedName.isBlank() || normalizedRoll.isBlank()) {
+            return null;
+        }
+
+        String[] parts =
+                normalizedName.split("\\s+");
+
+        if (parts.length == 0) {
+            return null;
+        }
+
+        StringBuilder account =
+                new StringBuilder(parts[parts.length - 1]);
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            if (!parts[i].isBlank()) {
+                account.append(parts[i].charAt(0));
+            }
+        }
+
+        account.append(normalizedRoll);
+
+        return account.toString();
+    }
+
+    private String asciiLower(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        String normalized =
+                Normalizer.normalize(
+                                value.trim(),
+                                Normalizer.Form.NFD
+                        )
+                        .replace("đ", "d")
+                        .replace("Đ", "D")
+                        .replaceAll("\\p{M}", "");
+
+        return normalized.toLowerCase(Locale.ROOT);
+    }
+
     private String buildStudentComment(
             List<String> row,
-            Map<String, Integer> headerMap,
-            List<String> components
+            Map<String, Integer> headerMap
     ) {
 
         String directComment =
@@ -861,27 +1511,24 @@ public class GradeService {
             return directComment;
         }
 
-        List<String> comments =
-                new ArrayList<>();
+        return "";
+    }
 
-        for (String component : components) {
-            String comment =
-                    getCell(
-                            row,
-                            headerMap,
-                            component + "_Comment",
-                            component + " Comment",
-                            component + "Comment"
-                    );
+    private String excelComment(
+            List<String> row,
+            Map<String, Integer> headerMap,
+            String component
+    ) {
 
-            if (!comment.isBlank()) {
-                comments.add(component + ": " + comment);
-            }
-        }
-
-        return comments.isEmpty()
-                ? null
-                : String.join("; ", comments);
+        return emptyToNull(
+                getCell(
+                        row,
+                        headerMap,
+                        component + "_Comment",
+                        component + " Comment",
+                        component + "Comment"
+                )
+        );
     }
 
     private List<String> getGradingComponents(
@@ -1025,12 +1672,16 @@ public class GradeService {
                 new TeacherGradeFile();
 
         teacherGrade.setVersion("1.1");
-        teacherGrade.setSemester(nullToEmpty(fileInfo.semester()));
-        teacherGrade.setLogin(
-                nullToEmpty(fileInfo.teacherLogin())
-                        .toLowerCase(Locale.ROOT)
-        );
-        teacherGrade.setPassword("");
+
+        if (!blank(fileInfo.semester())) {
+            teacherGrade.setSemester(fileInfo.semester());
+        }
+
+        if (!blank(fileInfo.teacherLogin())) {
+            teacherGrade.setLogin(
+                    fileInfo.teacherLogin().toLowerCase(Locale.ROOT)
+            );
+        }
 
         return teacherGrade;
     }
@@ -1039,28 +1690,14 @@ public class GradeService {
             TeacherGradeFile teacherGrade
     ) {
 
-        if (teacherGrade.getVersion() == null) {
-            teacherGrade.setVersion("1.1");
-        }
-
-        if (teacherGrade.getSemester() == null) {
-            teacherGrade.setSemester("");
-        }
-
-        if (teacherGrade.getLogin() == null) {
-            teacherGrade.setLogin("");
-        }
-
-        if (teacherGrade.getPassword() == null) {
-            teacherGrade.setPassword("");
-        }
-
         if (teacherGrade.getSubjectClassGrades() == null) {
             teacherGrade.setSubjectClassGrades(new ArrayList<>());
         }
 
         for (FgSubjectClassGrade subjectClass
                 : teacherGrade.getSubjectClassGrades()) {
+
+            normalizeSubjectClass(subjectClass);
 
             if (subjectClass.getStudents() == null) {
                 subjectClass.setStudents(new ArrayList<>());
@@ -1073,6 +1710,14 @@ public class GradeService {
             for (FgStudent student : subjectClass.getStudents()) {
                 if (student.getGrades() == null) {
                     student.setGrades(new ArrayList<>());
+                }
+
+                for (FgGradeComponent grade : student.getGrades()) {
+                    if (grade.getGrade() != null) {
+                        grade.setGrade(
+                                (float) round(grade.getGrade())
+                        );
+                    }
                 }
             }
         }
@@ -1184,7 +1829,7 @@ public class GradeService {
         return result;
     }
 
-    private double gradeOrZero(
+    private Double gradeOrNull(
             Map<String, Float> gradeMap,
             String component
     ) {
@@ -1192,7 +1837,24 @@ public class GradeService {
         Float value =
                 gradeMap.get(normalize(component));
 
-        return value == null ? 0 : value;
+        return value == null ? null : round(value);
+    }
+
+    private Double firstGradeOrNull(
+            Map<String, Float> gradeMap,
+            String... components
+    ) {
+
+        for (String component : components) {
+            Double value =
+                    gradeOrNull(gradeMap, component);
+
+            if (value != null) {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private Float parseNullableFloat(String value) {
@@ -1204,25 +1866,25 @@ public class GradeService {
                 value.trim().replace(",", ".");
 
         try {
-            return Float.parseFloat(normalized);
+            return (float) round(Float.parseFloat(normalized));
         } catch (NumberFormatException e) {
             return null;
         }
     }
 
-    private double parseDouble(String value) {
+    private Double parseDouble(String value) {
         Float parsed =
                 parseNullableFloat(value);
 
-        return parsed == null ? 0 : parsed;
+        return parsed == null ? null : parsed.doubleValue();
     }
 
-    private Float toFloat(double value) {
-        return (float) value;
+    private Float toFloat(Double value) {
+        return value == null ? null : (float) round(value);
     }
 
-    private Float optionalResit(double value) {
-        return value <= 0 ? null : (float) value;
+    private Float optionalResit(Double value) {
+        return value == null ? null : (float) round(value);
     }
 
     private void addComment(
@@ -1249,38 +1911,36 @@ public class GradeService {
     ) {
 
         if (teacherGrade.getSubjectClassGrades().isEmpty()) {
-            return "";
+            return null;
         }
 
-        return nullToEmpty(
-                teacherGrade.getSubjectClassGrades()
-                        .get(0)
-                        .getSubject()
-        );
+        return teacherGrade.getSubjectClassGrades()
+                .get(0)
+                .getSubject();
     }
 
     private String latestSemester() {
         return latestTeacherGrade == null
-                ? ""
-                : nullToEmpty(latestTeacherGrade.getSemester());
+                ? null
+                : latestTeacherGrade.getSemester();
     }
 
     private String latestLogin() {
         return latestTeacherGrade == null
-                ? ""
-                : nullToEmpty(latestTeacherGrade.getLogin());
+                ? null
+                : latestTeacherGrade.getLogin();
     }
 
     private String latestPassword() {
         return latestTeacherGrade == null
-                ? ""
-                : nullToEmpty(latestTeacherGrade.getPassword());
+                ? null
+                : latestTeacherGrade.getPassword();
     }
 
     private String latestSubjectForClass(String className) {
         if (latestTeacherGrade == null
                 || latestTeacherGrade.getSubjectClassGrades() == null) {
-            return "";
+            return null;
         }
 
         for (FgSubjectClassGrade subjectClass
@@ -1290,7 +1950,7 @@ public class GradeService {
                     normalize(subjectClass.getClassName()),
                     normalize(className)
             )) {
-                return nullToEmpty(subjectClass.getSubject());
+                return subjectClass.getSubject();
             }
         }
 
@@ -1301,12 +1961,20 @@ public class GradeService {
         return value == null || value.isBlank();
     }
 
+    private String emptyToNull(String value) {
+        return blank(value) ? null : value;
+    }
+
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
     }
 
     private double round(double value) {
-        return Math.round(value * 100.0) / 100.0;
+        return Math.round(value * 10.0) / 10.0;
+    }
+
+    private Double roundScore(Double value) {
+        return value == null ? null : round(value);
     }
 
     private String normalize(String value) {
@@ -1327,6 +1995,10 @@ public class GradeService {
         return latestClasses;
     }
 
+    public TeacherGradeFile getLatestTeacherGrade() {
+        return latestTeacherGrade;
+    }
+
     public String getLatestFgFileName() {
         return latestFgFileName;
     }
@@ -1335,11 +2007,59 @@ public class GradeService {
         return latestExcelFileName;
     }
 
+    public Map<String, Object> getLatestFileInfo() {
+        Map<String, Object> fileInfo =
+                new LinkedHashMap<>();
+
+        if (latestTeacherGrade == null) {
+            return fileInfo;
+        }
+
+        fileInfo.put("version", latestTeacherGrade.getVersion());
+        fileInfo.put("semester", latestTeacherGrade.getSemester());
+        fileInfo.put("login", latestTeacherGrade.getLogin());
+        fileInfo.put("passwordHash", latestTeacherGrade.getPassword());
+
+        List<Map<String, Object>> subjectClasses =
+                new ArrayList<>();
+
+        if (latestTeacherGrade.getSubjectClassGrades() != null) {
+            for (FgSubjectClassGrade subjectClass
+                    : latestTeacherGrade.getSubjectClassGrades()) {
+
+                Map<String, Object> item =
+                        new LinkedHashMap<>();
+
+                item.put("subject", subjectClass.getSubject());
+                item.put("className", subjectClass.getClassName());
+                item.put("components", subjectClass.getComponents());
+                item.put(
+                        "studentCount",
+                        subjectClass.getStudents() == null
+                                ? 0
+                                : subjectClass.getStudents().size()
+                );
+
+                subjectClasses.add(item);
+            }
+        }
+
+        fileInfo.put("subjectClasses", subjectClasses);
+
+        return fileInfo;
+    }
+
     private record FileInfo(
             String className,
             String subjectCode,
             String teacherLogin,
             String semester
+    ) {
+    }
+
+    private record SubjectClassParts(
+            String subject,
+            String className
     ) {
     }
 }

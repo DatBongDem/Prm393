@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -23,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import be.business.GradeService;
 import be.business.dtos.StudentGrade;
+import be.business.dtos.StudentGradeRequest;
 
 @RestController
 @RequestMapping("/grade")
@@ -33,11 +36,35 @@ public class GradeController {
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             );
 
+    private static final String[] EXCEL_COLUMNS = {
+            "Class",
+            "RollNumber",
+            "Email",
+            "MemberCode",
+            "FullName",
+            "ExamDate",
+            "ExamNote",
+            "Final Exam",
+            "Final Exam_Comment",
+            "Final Exam Resit",
+            "Final Exam Resit_Comment",
+            "Practical Exam",
+            "Practical Exam_Comment",
+            "Progress Test 1",
+            "Progress Test 1_Comment",
+            "Progress Test 2",
+            "Progress Test 2_Comment",
+            "Progress Test 3",
+            "Progress Test 3_Comment",
+            "Project",
+            "Project_Comment"
+    };
+
     @Autowired
     private GradeService gradeService;
 
     @PostMapping(
-            value = "/upload",
+            value = "/upload-excel",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public ResponseEntity<?> uploadExcel(
@@ -60,6 +87,7 @@ public class GradeController {
                     new HashMap<>();
 
             response.put("message", "Upload Excel success");
+            response.put("fileInfo", gradeService.getLatestFileInfo());
             response.put("classes", classes);
 
             return ResponseEntity.ok(response);
@@ -96,6 +124,7 @@ public class GradeController {
                     new HashMap<>();
 
             response.put("message", "Upload FG success");
+            response.put("fileInfo", gradeService.getLatestFileInfo());
             response.put("classes", classes);
 
             return ResponseEntity.ok(response);
@@ -108,73 +137,28 @@ public class GradeController {
         }
     }
 
-    @PostMapping(
-            value = "/excel-to-fg",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-    )
-    public ResponseEntity<?> convertExcelToFg(
-            @RequestPart("file") MultipartFile file
-    ) {
+    @GetMapping("/get-final")
+    public ResponseEntity<?> getFinal() {
 
         try {
-            if (file.isEmpty()) {
+            Map<String, List<StudentGrade>> classes =
+                    gradeService.getLatestClasses();
+
+            if (classes == null || classes.isEmpty()) {
                 return ResponseEntity.badRequest()
-                        .body("File is empty");
+                        .body("No data available");
             }
 
-            Map<String, List<StudentGrade>> classes =
-                    gradeService.processExcel(
-                            file.getInputStream(),
-                            file.getOriginalFilename()
-                    );
+            gradeService.refreshTeacherGradeFromClasses();
 
-            byte[] fgBytes =
-                    gradeService.generateFGContent(classes)
-                            .getBytes(StandardCharsets.UTF_8);
+            Map<String, Object> response =
+                    new HashMap<>();
 
-            return ResponseEntity.ok()
-                    .header(
-                            HttpHeaders.CONTENT_DISPOSITION,
-                            attachment(gradeService.getLatestFgFileName())
-                    )
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(fgBytes);
+            response.put("message", "Get final data success");
+            response.put("fileInfo", gradeService.getLatestFileInfo());
+            response.put("classes", classes);
 
-        } catch (Exception e) {
-            e.printStackTrace();
-
-            return ResponseEntity.badRequest()
-                    .body("ERROR: " + e.getMessage());
-        }
-    }
-
-    @PostMapping(
-            value = "/fg-to-excel",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-    )
-    public ResponseEntity<?> convertFgToExcel(
-            @RequestPart("file") MultipartFile file
-    ) {
-
-        try {
-            if (file.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body("File is empty");
-            }
-
-            Map<String, List<StudentGrade>> classes =
-                    gradeService.processFg(
-                            file.getInputStream(),
-                            file.getOriginalFilename()
-                    );
-
-            return ResponseEntity.ok()
-                    .header(
-                            HttpHeaders.CONTENT_DISPOSITION,
-                            attachment(gradeService.getLatestExcelFileName())
-                    )
-                    .contentType(XLSX_MEDIA_TYPE)
-                    .body(buildExcelBytes(classes));
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -196,9 +180,10 @@ public class GradeController {
                         .body("No FG file available");
             }
 
+            gradeService.refreshTeacherGradeFromClasses();
+
             byte[] fgBytes =
-                    gradeService.generateFGContent(classes)
-                            .getBytes(StandardCharsets.UTF_8);
+                    gradeService.generateFGContent(classes);
 
             return ResponseEntity.ok()
                     .header(
@@ -231,35 +216,17 @@ public class GradeController {
                         .body("No data available");
             }
 
+            gradeService.refreshTeacherGradeFromClasses();
+
             return ResponseEntity.ok()
                     .header(
                             HttpHeaders.CONTENT_DISPOSITION,
                             attachment(gradeService.getLatestExcelFileName())
                     )
                     .contentType(XLSX_MEDIA_TYPE)
-                    .body(buildExcelBytes(classes));
-
-        } catch (Exception e) {
-            e.printStackTrace();
-
-            return ResponseEntity.badRequest()
-                    .body("ERROR: " + e.getMessage());
-        }
-    }
-
-    @GetMapping("/latest")
-    public ResponseEntity<?> getLatestData() {
-
-        try {
-            Map<String, List<StudentGrade>> classes =
-                    gradeService.getLatestClasses();
-
-            if (classes == null || classes.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body("Chua co du lieu Excel");
-            }
-
-            return ResponseEntity.ok(classes);
+                    .body(
+                            buildExcelBytes(classes)
+                    );
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -276,96 +243,83 @@ public class GradeController {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
+            CellStyle scoreStyle =
+                    scoreCellStyle(workbook);
+
             for (String className : classes.keySet()) {
+                List<StudentGrade> students =
+                        classes.get(className) == null
+                                ? List.of()
+                                : classes.get(className);
+
                 Sheet sheet =
-                        workbook.createSheet(safeSheetName(className));
+                        workbook.createSheet(
+                                uniqueSheetName(
+                                        workbook,
+                                        safeSheetName(
+                                                exportSheetName(
+                                                        className,
+                                                        students
+                                                )
+                                        )
+                                )
+                        );
 
                 Row header =
                         sheet.createRow(0);
 
-                String[] columns = {
-                        "Class",
-                        "RollNumber",
-                        "Email",
-                        "MemberCode",
-                        "FullName",
-                        "ExamDate",
-                        "ExamNote",
-                        "Final Exam",
-                        "Final Exam_Comment",
-                        "Final Exam Resit",
-                        "Final Exam Resit_Comment",
-                        "Practical Exam",
-                        "Practical Exam_Comment",
-                        "Progress Test 1",
-                        "Progress Test 1_Comment",
-                        "Progress Test 2",
-                        "Progress Test 2_Comment",
-                        "Progress Test 3",
-                        "Progress Test 3_Comment",
-                        "Project",
-                        "Project_Comment"
-                };
-
-                for (int i = 0; i < columns.length; i++) {
+                for (int i = 0; i < EXCEL_COLUMNS.length; i++) {
                     header.createCell(i)
-                            .setCellValue(columns[i]);
+                            .setCellValue(EXCEL_COLUMNS[i]);
                 }
-
-                List<StudentGrade> students =
-                        classes.get(className);
 
                 int rowIndex = 1;
 
                 for (StudentGrade student : students) {
+                    StudentGradeRequest fileRow =
+                            gradeService.toStudentGradeRequest(student);
+
                     Row row =
                             sheet.createRow(rowIndex++);
 
                     row.createCell(0)
-                            .setCellValue(nullToEmpty(student.getClassName()));
+                            .setCellValue(nullToEmpty(fileRow.getClassName()));
                     row.createCell(1)
-                            .setCellValue(nullToEmpty(student.getRollNumber()));
+                            .setCellValue(nullToEmpty(fileRow.getRollNumber()));
                     row.createCell(2)
-                            .setCellValue(nullToEmpty(student.getEmail()));
+                            .setCellValue(nullToEmpty(fileRow.getEmail()));
                     row.createCell(3)
-                            .setCellValue(nullToEmpty(student.getMemberCode()));
+                            .setCellValue(nullToEmpty(fileRow.getMemberCode()));
                     row.createCell(4)
-                            .setCellValue(nullToEmpty(student.getFullName()));
+                            .setCellValue(nullToEmpty(fileRow.getFullName()));
                     row.createCell(5)
-                            .setCellValue(nullToEmpty(student.getExamDate()));
+                            .setCellValue(nullToEmpty(fileRow.getExamDate()));
                     row.createCell(6)
-                            .setCellValue(nullToEmpty(student.getExamNote()));
-                    row.createCell(7)
-                            .setCellValue(student.getFinalExam());
+                            .setCellValue(nullToEmpty(fileRow.getExamNote()));
+                    setNumericCell(row, 7, fileRow.getFinalExam(), scoreStyle);
                     row.createCell(8)
-                            .setCellValue(nullToEmpty(student.getFinalComment()));
-                    row.createCell(9)
-                            .setCellValue(student.getFinalResit());
+                            .setCellValue(nullToEmpty(fileRow.getFinalExamComment()));
+                    setNumericCell(row, 9, fileRow.getFinalExamResit(), scoreStyle);
                     row.createCell(10)
-                            .setCellValue(nullToEmpty(student.getFinalResitComment()));
-                    row.createCell(11)
-                            .setCellValue(student.getPractical());
+                            .setCellValue(nullToEmpty(fileRow.getFinalExamResitComment()));
+                    setNumericCell(row, 11, fileRow.getPracticalExam(), scoreStyle);
                     row.createCell(12)
-                            .setCellValue(nullToEmpty(student.getPracticalComment()));
-                    row.createCell(13)
-                            .setCellValue(student.getPt1());
+                            .setCellValue(nullToEmpty(fileRow.getPracticalExamComment()));
+                    setNumericCell(row, 13, fileRow.getPt1(), scoreStyle);
                     row.createCell(14)
-                            .setCellValue(nullToEmpty(student.getPt1Comment()));
-                    row.createCell(15)
-                            .setCellValue(student.getPt2());
+                            .setCellValue(nullToEmpty(fileRow.getPt1Comment()));
+                    setNumericCell(row, 15, fileRow.getPt2(), scoreStyle);
                     row.createCell(16)
-                            .setCellValue(nullToEmpty(student.getPt2Comment()));
-                    row.createCell(17)
-                            .setCellValue(student.getPt3());
+                            .setCellValue(nullToEmpty(fileRow.getPt2Comment()));
+                    setNumericCell(row, 17, fileRow.getPt3(), scoreStyle);
                     row.createCell(18)
-                            .setCellValue(nullToEmpty(student.getPt3Comment()));
-                    row.createCell(19)
-                            .setCellValue(student.getProject());
+                            .setCellValue(nullToEmpty(fileRow.getPt3Comment()));
+                    setNumericCell(row, 19, fileRow.getProject(), scoreStyle);
                     row.createCell(20)
-                            .setCellValue(nullToEmpty(student.getProjectComment()));
+                            .setCellValue(nullToEmpty(fileRow.getProjectComment()));
                 }
 
-                for (int i = 0; i < columns.length; i++) {
+                for (int i = 0; i < EXCEL_COLUMNS.length; i++) {
                     sheet.autoSizeColumn(i);
                 }
             }
@@ -374,6 +328,38 @@ public class GradeController {
 
             return out.toByteArray();
         }
+    }
+
+    private void setNumericCell(
+            Row row,
+            int index,
+            Number value,
+            CellStyle scoreStyle
+    ) {
+
+        if (value != null) {
+            Cell cell =
+                    row.createCell(index);
+
+            cell.setCellValue(roundScore(value.doubleValue()));
+            cell.setCellStyle(scoreStyle);
+        }
+    }
+
+    private CellStyle scoreCellStyle(Workbook workbook) {
+        CellStyle style =
+                workbook.createCellStyle();
+
+        style.setDataFormat(
+                workbook.createDataFormat()
+                        .getFormat("0.0")
+        );
+
+        return style;
+    }
+
+    private double roundScore(double value) {
+        return Math.round(value * 10.0) / 10.0;
     }
 
     private String safeSheetName(String value) {
@@ -389,6 +375,54 @@ public class GradeController {
         return name.length() > 31
                 ? name.substring(0, 31)
                 : name;
+    }
+
+    private String exportSheetName(
+            String classKey,
+            List<StudentGrade> students
+    ) {
+
+        for (StudentGrade student : students) {
+            if (student.getClassName() != null
+                    && !student.getClassName().isBlank()) {
+                return student.getClassName();
+            }
+        }
+
+        return classKey;
+    }
+
+    private String uniqueSheetName(
+            Workbook workbook,
+            String baseName
+    ) {
+
+        String base =
+                nullToEmpty(baseName).isBlank()
+                        ? "Sheet1"
+                        : baseName;
+
+        if (workbook.getSheet(base) == null) {
+            return base;
+        }
+
+        int index = 2;
+
+        while (true) {
+            String suffix =
+                    " (" + index + ")";
+            int maxLength =
+                    31 - suffix.length();
+            String candidate =
+                    base.substring(0, Math.min(base.length(), maxLength))
+                            + suffix;
+
+            if (workbook.getSheet(candidate) == null) {
+                return candidate;
+            }
+
+            index++;
+        }
     }
 
     private String attachment(String fileName) {

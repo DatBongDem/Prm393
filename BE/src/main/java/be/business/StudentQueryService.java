@@ -89,7 +89,11 @@ public class StudentQueryService {
     }
 
     // ================= NUMBER COMPARE =================
-    private boolean compareNumber(double actual, AIQuery q) {
+    private boolean compareNumber(Double actual, AIQuery q) {
+
+        if (actual == null) {
+            return false;
+        }
 
         try {
 
@@ -158,14 +162,23 @@ public class StudentQueryService {
         List<StudentGrade> result =
                 new ArrayList<>();
 
-        double bestValue =
-                getValue(students.get(0), field);
+        Double bestValue =
+                null;
 
         // tìm max/min
         for (StudentGrade s : students) {
 
-            double value =
+            Double value =
                     getValue(s, field);
+
+            if (value == null) {
+                continue;
+            }
+
+            if (bestValue == null) {
+                bestValue = value;
+                continue;
+            }
 
             if ("max".equalsIgnoreCase(type)
                     && value > bestValue) {
@@ -183,10 +196,10 @@ public class StudentQueryService {
         // lấy tất cả người đồng điểm
         for (StudentGrade s : students) {
 
-            double value =
+            Double value =
                     getValue(s, field);
 
-            if (value == bestValue) {
+            if (bestValue != null && bestValue.equals(value)) {
                 result.add(s);
             }
         }
@@ -195,7 +208,7 @@ public class StudentQueryService {
     }
 
     // ================= GET VALUE =================
-    private double getValue(StudentGrade s,
+    private Double getValue(StudentGrade s,
                             String field) {
 
         return switch (field) {
@@ -221,7 +234,7 @@ public class StudentQueryService {
             case "pt3" ->
                     s.getPt3();
 
-            default -> 0;
+            default -> null;
         };
     }
 

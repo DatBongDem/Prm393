@@ -16,7 +16,7 @@ class GradeApiService {
 
   final http.Client _client;
 
-  Uri get _uploadUri => Uri.parse('$baseUrl/grade/upload');
+  Uri get _uploadUri => Uri.parse('$baseUrl/grade/upload-excel');
 
   Future<GradeUploadResponse> uploadGradeFile(PlatformFile pickedFile) async {
     final request = http.MultipartRequest('POST', _uploadUri);
