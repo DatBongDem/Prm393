@@ -18,11 +18,8 @@ class DetailScreen extends StatelessWidget {
 
     final Uri url = Uri.parse(doiUrl);
     try {
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
-        throw 'Không thể mở liên kết này';
-      }
+      // Gọi trực tiếp launchUrl để tránh lỗi canLaunchUrl trả về false trên một số thiết bị Android 11+
+      await launchUrl(url, mode: LaunchMode.externalApplication);
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -198,7 +195,7 @@ class DetailScreen extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      publication.abstractText ?? 'Không tìm thấy thông tin tóm tắt cho bài báo này trong cơ sở dữ liệu OpenAlex.',
+                      publication.abstractText ?? 'Không tìm thấy thông tin tóm tắt cho bài báo này trong hệ thống dữ liệu.',
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         height: 1.6,
