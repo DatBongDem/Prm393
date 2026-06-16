@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../state/analytics_provider.dart';
-import 'detail_screen.dart';
+import '../widgets/publication_card.dart';
 import 'dashboard_screen.dart';
 import 'trend_screen.dart';
 
@@ -56,13 +56,6 @@ class _SearchScreenState extends State<SearchScreen> {
         centerTitle: true,
         elevation: 0,
         backgroundColor: const Color(0xFF1E293B),
-        actions: [
-          if (provider.publications.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.white),
-              onPressed: () => _handleSearch(provider.currentQuery),
-            )
-        ],
       ),
       body: Column(
         children: [
@@ -94,7 +87,10 @@ class _SearchScreenState extends State<SearchScreen> {
                   decoration: InputDecoration(
                     hintText: 'Nhập chủ đề nghiên cứu (ví dụ: AI, IoT...)',
                     hintStyle: GoogleFonts.inter(color: Colors.white60),
-                    prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
+                    prefixIcon: IconButton(
+                      icon: const Icon(Icons.search, color: Colors.blueAccent),
+                      onPressed: () => _handleSearch(_searchController.text),
+                    ),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear, color: Colors.white60),
@@ -242,7 +238,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Đang tải dữ liệu từ OpenAlex...',
+              'Đang tải dữ liệu nghiên cứu...',
               style: GoogleFonts.inter(
                 color: Colors.grey,
                 fontSize: 15,
@@ -267,9 +263,9 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              provider.errorMessage!,
+              _cleanErrorMessage(provider.errorMessage!),
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(color: Colors.grey),
+              style: GoogleFonts.inter(color: Colors.grey, height: 1.4),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -278,6 +274,7 @@ class _SearchScreenState extends State<SearchScreen> {
               label: const Text('Thử lại'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -335,14 +332,19 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Chủ đề: "${provider.currentQuery}"',
-                style: GoogleFonts.outfit(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blueAccent,
+              Expanded(
+                child: Text(
+                  'Chủ đề: "${provider.currentQuery}"',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blueAccent,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 'Tìm thấy: ${provider.totalPublications} bài viết',
                 style: GoogleFonts.inter(
@@ -355,142 +357,39 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 80), // Chừa khoảng trống cho FloatingActionButton
-            itemCount: provider.publications.length,
-            itemBuilder: (context, index) {
-              final pub = provider.publications[index];
-              
-              // Tạo chuỗi danh sách tác giả
-              final authorsText = pub.authors.isEmpty
-                  ? 'Chưa rõ tác giả'
-                  : pub.authors.length <= 3
-                      ? pub.authors.join(', ')
-                      : '${pub.authors.take(3).join(', ')} và cs.';
-
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                elevation: 2,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF1E293B)
-                    : Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DetailScreen(publication: pub),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          pub.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.outfit(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            height: 1.3,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          authorsText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(
-                            color: Colors.grey[600],
-                            fontSize: 13,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            // Huy hiệu năm
-                            _buildInfoBadge(
-                              context,
-                              Icons.calendar_month,
-                              pub.publicationYear.toString(),
-                              Colors.amber,
-                            ),
-                            const SizedBox(width: 12),
-                            // Huy hiệu trích dẫn
-                            _buildInfoBadge(
-                              context,
-                              Icons.format_quote,
-                              '${pub.citedByCount} trích dẫn',
-                              Colors.green,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        // Hiển thị Journal Name
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.menu_book,
-                              size: 14,
-                              color: Colors.blueAccent.withOpacity(0.8),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                pub.journalName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
-                  ),
-                ),
-              );
+          child: RefreshIndicator(
+            onRefresh: () async {
+              if (provider.currentQuery.isNotEmpty) {
+                await provider.searchTopic(provider.currentQuery);
+              }
             },
+            color: Colors.blueAccent,
+            backgroundColor: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1E293B)
+                : Colors.white,
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 80), // Chừa khoảng trống cho FloatingActionButton
+              itemCount: provider.publications.length,
+              itemBuilder: (context, index) {
+                final pub = provider.publications[index];
+                return PublicationCard(publication: pub);
+              },
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildInfoBadge(BuildContext context, IconData icon, String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
+  String _cleanErrorMessage(String raw) {
+    String clean = raw.replaceAll('Exception: ', '').replaceAll('OpenAlex', 'hệ thống').trim();
+    if (clean.contains('503')) {
+      return 'Máy chủ dữ liệu đang tạm thời quá tải hoặc bảo trì (Lỗi 503). Vui lòng vuốt kéo để tải lại hoặc nhấn nút "Thử lại".';
+    }
+    if (clean.contains('SocketException') || clean.contains('Failed host lookup') || clean.contains('Network')) {
+      return 'Không có kết nối Internet. Vui lòng kiểm tra Wi-Fi hoặc dữ liệu di động (3G/4G) trên thiết bị của bạn.';
+    }
+    return clean;
   }
 }

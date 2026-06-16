@@ -27,10 +27,10 @@ class OpenAlexService {
         
         return results.map((json) => Publication.fromJson(json)).toList();
       } else {
-        throw Exception('Lỗi khi tải dữ liệu từ OpenAlex API (Status Code: ${response.statusCode})');
+        throw Exception('Lỗi khi tải dữ liệu (Status Code: ${response.statusCode})');
       }
     } catch (e) {
-      throw Exception('Không thể kết nối đến OpenAlex API. Chi tiết: $e');
+      throw Exception('Không thể kết nối đến máy chủ dữ liệu. Chi tiết: $e');
     }
   }
 }
