@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+
 import '../state/analytics_provider.dart';
 import 'detail_screen.dart';
 import 'trend_screen.dart';
@@ -58,7 +59,6 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Tiêu đề Dashboard
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -106,8 +106,6 @@ class DashboardScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-
-            // Lưới hiển thị các thẻ chỉ số (Grid of metrics)
             GridView.count(
               crossAxisCount: 2,
               crossAxisSpacing: 16,
@@ -148,12 +146,8 @@ class DashboardScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 20),
-
-            // Thống kê tác giả hàng đầu (Full width card)
             _buildAuthorHighlightCard(context, provider.topAuthorName, isDark),
             const SizedBox(height: 24),
-
-            // Thẻ nổi bật: Bài viết có ảnh hưởng lớn nhất
             if (mostInfluential != null) ...[
               Text(
                 'Bài viết có ảnh hưởng nhất',
@@ -243,7 +237,7 @@ class DashboardScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       Text(
                         mostInfluential.authors.isNotEmpty
-                            ? 'Tác giả: ${mostInfluential.authors.join(', ')}'
+                            ? 'Tác giả: ${mostInfluential.authors.map((author) => author.name).join(', ')}'
                             : 'Chưa rõ tác giả',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -393,7 +387,7 @@ class DashboardScreen extends StatelessWidget {
               color: Colors.deepPurpleAccent.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.school, color: Colors.deepPurpleAccent, size: 24),
+            child: const Icon(Icons.school, color: Colors.deepPurpleAccent, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(

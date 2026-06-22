@@ -1,9 +1,13 @@
 import 'dart:math';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+
+import '../models/author.dart';
 import '../state/analytics_provider.dart';
+import 'author_detail_screen.dart';
 
 class TrendScreen extends StatelessWidget {
   const TrendScreen({super.key});
@@ -66,7 +70,6 @@ class TrendScreen extends StatelessWidget {
     );
   }
 
-  // TAB 1: BIỂU ĐỒ XU HƯỚNG THEO NĂM
   Widget _buildYearTrendTab(BuildContext context, AnalyticsProvider provider) {
     final yearData = provider.publicationsByYear;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -80,22 +83,17 @@ class TrendScreen extends StatelessWidget {
       );
     }
 
-    // Chuẩn bị dữ liệu cho fl_chart
     final sortedYears = yearData.keys.toList();
     final spots = sortedYears.map((year) {
       return FlSpot(year.toDouble(), yearData[year]!.toDouble());
     }).toList();
 
-    // Tìm giá trị min/max để thiết lập giới hạn cho trục
-    double minX = sortedYears.first.toDouble();
-    double maxX = sortedYears.last.toDouble();
-    double minY = 0;
-    double maxY = (yearData.values.reduce(max).toDouble() * 1.2).ceilToDouble();
-
-    // Khoảng chia trục X (Ví dụ: cách nhau 2-5 năm tùy độ rộng dữ liệu)
-    double xInterval = max(1.0, ((maxX - minX) / 5).roundToDouble());
-    // Khoảng chia trục Y
-    double yInterval = max(1.0, (maxY / 5).roundToDouble());
+    final minX = sortedYears.first.toDouble();
+    final maxX = sortedYears.last.toDouble();
+    const minY = 0.0;
+    final maxY = (yearData.values.reduce(max).toDouble() * 1.2).ceilToDouble();
+    final xInterval = max(1.0, ((maxX - minX) / 5).roundToDouble());
+    final yInterval = max(1.0, (maxY / 5).roundToDouble());
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
@@ -112,8 +110,6 @@ class TrendScreen extends StatelessWidget {
             style: GoogleFonts.inter(color: Colors.grey, fontSize: 13),
           ),
           const SizedBox(height: 24),
-          
-          // Container chứa biểu đồ fl_chart
           Container(
             height: 250,
             padding: const EdgeInsets.fromLTRB(10, 20, 20, 10),
@@ -215,17 +211,13 @@ class TrendScreen extends StatelessWidget {
                       show: true,
                       color: Colors.blueAccent.withOpacity(0.12),
                     ),
-                    dotData: const FlDotData(
-                      show: true,
-                    ),
+                    dotData: const FlDotData(show: true),
                   ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 24),
-
-          // Danh sách thống kê chi tiết theo năm
           Text(
             'Chi tiết công bố qua các năm',
             style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
@@ -236,7 +228,7 @@ class TrendScreen extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: sortedYears.length,
             itemBuilder: (context, index) {
-              final year = sortedYears[sortedYears.length - 1 - index]; // Sắp xếp năm mới nhất lên đầu
+              final year = sortedYears[sortedYears.length - 1 - index];
               final count = yearData[year]!;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -286,7 +278,6 @@ class TrendScreen extends StatelessWidget {
     );
   }
 
-  // TAB 2: CÁC TẠP CHÍ ĐÓNG GÓP NHIỀU NHẤT
   Widget _buildTopJournalsTab(BuildContext context, AnalyticsProvider provider) {
     final journals = provider.topJournals;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -304,7 +295,7 @@ class TrendScreen extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.all(20.0),
-      itemCount: min(20, journals.length), // Giới hạn top 20 tạp chí
+      itemCount: min(20, journals.length),
       itemBuilder: (context, index) {
         final journal = journals[index];
         final count = journal.value;
@@ -316,7 +307,6 @@ class TrendScreen extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Thứ hạng
               Container(
                 width: 36,
                 height: 36,
@@ -343,8 +333,6 @@ class TrendScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              
-              // Chi tiết tạp chí và thanh tỷ lệ phần trăm
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,7 +382,6 @@ class TrendScreen extends StatelessWidget {
     );
   }
 
-  // TAB 3: CÁC TÁC GIẢ ĐÓNG GÓP NHIỀU NHẤT
   Widget _buildTopAuthorsTab(BuildContext context, AnalyticsProvider provider) {
     final authors = provider.topAuthors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -408,94 +395,130 @@ class TrendScreen extends StatelessWidget {
       );
     }
 
-    final maxCount = authors.first.value;
+    final maxCount = authors.first.publicationCount;
 
     return ListView.builder(
       padding: const EdgeInsets.all(20.0),
-      itemCount: min(20, authors.length), // Giới hạn top 20 tác giả
+      itemCount: min(20, authors.length),
       itemBuilder: (context, index) {
         final author = authors[index];
-        final count = author.value;
-        final name = author.key;
+        final count = author.publicationCount;
+        final name = author.displayName;
         final percentage = maxCount > 0 ? count / maxCount : 0.0;
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Thứ hạng
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: index == 0
-                      ? Colors.amber
-                      : index == 1
-                          ? Colors.grey[400]
-                          : index == 2
-                              ? Colors.brown[300]
-                              : isDark
-                                  ? const Color(0xFF334155)
-                                  : Colors.grey[200],
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  '${index + 1}',
-                  style: GoogleFonts.outfit(
-                    color: index < 3 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-
-              // Tên tác giả và tiến trình đóng góp
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: isDark ? Colors.white70 : Colors.black87,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.white10 : Colors.grey[200]!,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AuthorDetailScreen(
+                      authorId: author.authorId,
+                      authorName: author.displayName,
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: percentage,
-                              backgroundColor: isDark ? Colors.white10 : Colors.grey[200],
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurpleAccent),
-                              minHeight: 8,
-                            ),
-                          ),
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: index == 0
+                            ? Colors.amber
+                            : index == 1
+                                ? Colors.grey[400]
+                                : index == 2
+                                    ? Colors.brown[300]
+                                    : isDark
+                                        ? const Color(0xFF334155)
+                                        : Colors.grey[200],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: GoogleFonts.outfit(
+                          color: index < 3 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          '$count bài viết',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.deepPurpleAccent,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: isDark ? Colors.white70 : Colors.black87,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                author.hasStableProfile ? Icons.open_in_new : Icons.arrow_forward_ios,
+                                size: author.hasStableProfile ? 16 : 12,
+                                color: author.hasStableProfile ? Colors.blueAccent : Colors.grey,
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: percentage,
+                                    backgroundColor: isDark ? Colors.white10 : Colors.grey[200],
+                                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurpleAccent),
+                                    minHeight: 8,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                '$count bài viết',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.deepPurpleAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
         );
       },

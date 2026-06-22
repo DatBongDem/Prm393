@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../models/author.dart';
 import '../models/publication.dart';
+import 'author_detail_screen.dart';
 
 class DetailScreen extends StatelessWidget {
   final Publication publication;
@@ -16,9 +19,8 @@ class DetailScreen extends StatelessWidget {
       return;
     }
 
-    final Uri url = Uri.parse(doiUrl);
+    final url = Uri.parse(doiUrl);
     try {
-      // Gọi trực tiếp launchUrl để tránh lỗi canLaunchUrl trả về false trên một số thiết bị Android 11+
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } catch (e) {
       if (!context.mounted) return;
@@ -26,6 +28,25 @@ class DetailScreen extends StatelessWidget {
         SnackBar(content: Text('Lỗi khi mở liên kết: $e')),
       );
     }
+  }
+
+  void _openAuthorDetail(BuildContext context, AuthorInfo author) {
+    if (author.name.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không có đủ dữ liệu để mở chi tiết tác giả.')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AuthorDetailScreen(
+          authorId: author.id,
+          authorName: author.name,
+        ),
+      ),
+    );
   }
 
   @override
@@ -47,7 +68,6 @@ class DetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Phần Header chứa Tiêu đề và Thống kê nhanh
             Container(
               padding: const EdgeInsets.all(20.0),
               decoration: BoxDecoration(
@@ -77,8 +97,6 @@ class DetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Chỉ số thống kê nhanh
                   Row(
                     children: [
                       _buildQuickStat(
@@ -101,15 +119,12 @@ class DetailScreen extends StatelessWidget {
                 ],
               ),
             ),
-            
-            // Nội dung chi tiết chính
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Tên Tạp chí
-                  _buildSectionTitle(context, 'Tạp chí & Đơn vị xuất bản', Icons.menu_book),
+                  _buildSectionTitle(context, 'Tạp chí và đơn vị xuất bản', Icons.menu_book),
                   Card(
                     elevation: 0,
                     color: isDark ? const Color(0xFF1E293B) : Colors.white,
@@ -149,9 +164,11 @@ class DetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Tác giả
-                  _buildSectionTitle(context, 'Danh sách tác giả (${publication.authors.length})', Icons.people_outline),
+                  _buildSectionTitle(
+                    context,
+                    'Danh sách tác giả (${publication.authors.length})',
+                    Icons.people_outline,
+                  ),
                   if (publication.authors.isEmpty)
                     Text(
                       'Thông tin tác giả đang được cập nhật.',
@@ -162,27 +179,56 @@ class DetailScreen extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 8,
                       children: publication.authors.map((author) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.blueAccent.withOpacity(0.08),
+                        final canOpenDetail = author.name.trim().isNotEmpty;
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
-                          ),
-                          child: Text(
-                            author,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.blue[300] : Colors.blue[800],
+                            onTap: canOpenDetail ? () => _openAuthorDetail(context, author) : null,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: canOpenDetail
+                                    ? Colors.blueAccent.withOpacity(0.08)
+                                    : Colors.grey.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: canOpenDetail
+                                      ? Colors.blueAccent.withOpacity(0.3)
+                                      : Colors.grey.withOpacity(0.25),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    author.name,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: canOpenDetail
+                                          ? isDark
+                                              ? Colors.blue[300]
+                                              : Colors.blue[800]
+                                          : Colors.grey,
+                                    ),
+                                  ),
+                                  if (author.hasOpenAlexId) ...[
+                                    const SizedBox(width: 6),
+                                    const Icon(
+                                      Icons.open_in_new,
+                                      size: 14,
+                                      color: Colors.blueAccent,
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
                           ),
                         );
                       }).toList(),
                     ),
                   const SizedBox(height: 24),
-
-                  // Tóm tắt nội dung (Abstract)
                   _buildSectionTitle(context, 'Tóm tắt bài báo (Abstract)', Icons.description_outlined),
                   Container(
                     width: double.infinity,
@@ -195,7 +241,8 @@ class DetailScreen extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      publication.abstractText ?? 'Không tìm thấy thông tin tóm tắt cho bài báo này trong hệ thống dữ liệu.',
+                      publication.abstractText ??
+                          'Không tìm thấy thông tin tóm tắt cho bài báo này trong hệ thống dữ liệu.',
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         height: 1.6,
@@ -211,8 +258,6 @@ class DetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  
-                  // Nút Truy cập nguồn
                   if (publication.doi != null)
                     SizedBox(
                       width: double.infinity,
@@ -257,7 +302,7 @@ class DetailScreen extends StatelessWidget {
             style: GoogleFonts.outfit(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : const Color(0xFF1E293B),
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
             ),
           ),
         ],

@@ -1,3 +1,5 @@
+import 'author.dart';
+
 class Publication {
   final String id;
   final String title;
@@ -6,7 +8,7 @@ class Publication {
   final String? doi;
   final int citedByCount;
   final String journalName;
-  final List<String> authors;
+  final List<AuthorInfo> authors;
   final String? abstractText;
 
   Publication({
@@ -22,25 +24,25 @@ class Publication {
   });
 
   factory Publication.fromJson(Map<String, dynamic> json) {
-    // Parse authors
-    List<String> parsedAuthors = [];
-    if (json['authorships'] != null) {
-      for (var authorObj in json['authorships']) {
-        var author = authorObj['author'];
-        if (author != null && author['display_name'] != null) {
-          parsedAuthors.add(author['display_name'].toString());
+    final List<AuthorInfo> parsedAuthors = [];
+    if (json['authorships'] is List) {
+      for (final authorObj in json['authorships']) {
+        if (authorObj is Map<String, dynamic>) {
+          final parsedAuthor = AuthorInfo.fromAuthorshipJson(authorObj);
+          if (parsedAuthor.name.isNotEmpty) {
+            parsedAuthors.add(parsedAuthor);
+          }
         }
       }
     }
 
-    // Parse journal name
     String journal = 'Unknown Journal';
     if (json['primary_location'] != null && json['primary_location']['source'] != null) {
       journal = json['primary_location']['source']['display_name'] ?? 'Unknown Journal';
     } else if (json['best_oa_location'] != null && json['best_oa_location']['source'] != null) {
       journal = json['best_oa_location']['source']['display_name'] ?? 'Unknown Journal';
     } else if (json['locations'] != null && (json['locations'] as List).isNotEmpty) {
-      for (var loc in json['locations']) {
+      for (final loc in json['locations']) {
         if (loc['source'] != null && loc['source']['display_name'] != null) {
           journal = loc['source']['display_name'];
           break;
@@ -48,9 +50,8 @@ class Publication {
       }
     }
 
-    // Reconstruct abstract from inverted index
     String? reconstructedAbstract;
-    var invertedIndex = json['abstract_inverted_index'];
+    final invertedIndex = json['abstract_inverted_index'];
     if (invertedIndex != null && invertedIndex is Map<String, dynamic>) {
       reconstructedAbstract = _reconstructAbstract(invertedIndex);
     }
@@ -71,10 +72,10 @@ class Publication {
   static String? _reconstructAbstract(Map<String, dynamic> invertedIndex) {
     if (invertedIndex.isEmpty) return null;
 
-    int maxIndex = -1;
+    var maxIndex = -1;
     invertedIndex.forEach((word, indices) {
       if (indices is List) {
-        for (var idx in indices) {
+        for (final idx in indices) {
           if (idx is int && idx > maxIndex) {
             maxIndex = idx;
           }
@@ -84,10 +85,10 @@ class Publication {
 
     if (maxIndex == -1) return null;
 
-    List<String?> wordsList = List.filled(maxIndex + 1, null);
+    final wordsList = List<String?>.filled(maxIndex + 1, null);
     invertedIndex.forEach((word, indices) {
       if (indices is List) {
-        for (var idx in indices) {
+        for (final idx in indices) {
           if (idx is int && idx >= 0 && idx < wordsList.length) {
             wordsList[idx] = word;
           }
@@ -95,6 +96,6 @@ class Publication {
       }
     });
 
-    return wordsList.map((w) => w ?? "").join(" ").trim();
+    return wordsList.map((w) => w ?? '').join(' ').trim();
   }
 }

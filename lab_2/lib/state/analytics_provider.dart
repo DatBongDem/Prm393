@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../models/author.dart';
 import '../models/publication.dart';
 import '../services/openalex_service.dart';
 
@@ -10,16 +12,14 @@ class AnalyticsProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // Getters
   String get currentQuery => _currentQuery;
   List<Publication> get publications => _publications;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  // Search logic
   Future<void> searchTopic(String query) async {
     if (query.trim().isEmpty) return;
-    
+
     _isLoading = true;
     _currentQuery = query;
     _errorMessage = null;
@@ -29,8 +29,6 @@ class AnalyticsProvider extends ChangeNotifier {
     try {
       final results = await _apiService.fetchPublications(query);
       _publications = results;
-      
-      // Sắp xếp danh sách bài báo mặc định theo số lượng trích dẫn giảm dần
       _publications.sort((a, b) => b.citedByCount.compareTo(a.citedByCount));
     } catch (e) {
       _errorMessage = e.toString();
@@ -40,7 +38,6 @@ class AnalyticsProvider extends ChangeNotifier {
     }
   }
 
-  // Clear search state
   void clearSearch() {
     _currentQuery = '';
     _publications = [];
@@ -49,31 +46,27 @@ class AnalyticsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- ANALYTICS GETTERS ---
-
-  // 1. Tổng số bài báo
   int get totalPublications => _publications.length;
 
-  // 2. Số trích dẫn trung bình
   double get averageCitations {
     if (_publications.isEmpty) return 0.0;
-    double total = 0;
-    for (var pub in _publications) {
+    var total = 0.0;
+    for (final pub in _publications) {
       total += pub.citedByCount;
     }
     return total / _publications.length;
   }
 
-  // 3. Bài báo có ảnh hưởng nhất (Xếp theo trích dẫn)
   Publication? get mostInfluentialPaper {
     if (_publications.isEmpty) return null;
-    return _publications.reduce((curr, next) => curr.citedByCount > next.citedByCount ? curr : next);
+    return _publications.reduce(
+      (curr, next) => curr.citedByCount > next.citedByCount ? curr : next,
+    );
   }
 
-  // 4. Các tạp chí đóng góp nhiều nhất
   List<MapEntry<String, int>> get topJournals {
-    final Map<String, int> counts = {};
-    for (var pub in _publications) {
+    final counts = <String, int>{};
+    for (final pub in _publications) {
       final name = pub.journalName;
       if (name != 'Unknown Journal' && name.isNotEmpty) {
         counts[name] = (counts[name] ?? 0) + 1;
@@ -83,52 +76,80 @@ class AnalyticsProvider extends ChangeNotifier {
     return sorted;
   }
 
-  // 5. Tạp chí hàng đầu (Tên tạp chí đóng góp nhiều nhất)
   String get topJournalName {
     final journals = topJournals;
     if (journals.isEmpty) return 'N/A';
     return journals.first.key;
   }
 
-  // 6. Các tác giả đóng góp nhiều nhất
-  List<MapEntry<String, int>> get topAuthors {
-    final Map<String, int> counts = {};
-    for (var pub in _publications) {
-      for (var author in pub.authors) {
-        if (author.isNotEmpty) {
-          counts[author] = (counts[author] ?? 0) + 1;
+  List<TopAuthorStat> get topAuthors {
+    final counts = <String, _TopAuthorAccumulator>{};
+
+    for (final pub in _publications) {
+      for (final author in pub.authors) {
+        final normalizedName = author.name.trim();
+        if (normalizedName.isEmpty) {
+          continue;
         }
+
+        final key = author.hasOpenAlexId
+            ? 'id:${author.id}'
+            : 'name:${normalizedName.toLowerCase()}';
+        final existing = counts[key];
+
+        if (existing == null) {
+          counts[key] = _TopAuthorAccumulator(
+            authorId: author.id,
+            displayName: normalizedName,
+            publicationCount: 1,
+          );
+          continue;
+        }
+
+        existing.publicationCount += 1;
+        if (existing.displayName.length > normalizedName.length) {
+          existing.displayName = normalizedName;
+        }
+        existing.authorId ??= author.id;
       }
     }
-    final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+    final sorted = counts.values
+        .map(
+          (item) => TopAuthorStat(
+            authorId: item.authorId,
+            displayName: item.displayName,
+            publicationCount: item.publicationCount,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => b.publicationCount.compareTo(a.publicationCount));
+
     return sorted;
   }
 
-  // 7. Tác giả hàng đầu (Tác giả đóng góp nhiều nhất)
   String get topAuthorName {
     final authors = topAuthors;
     if (authors.isEmpty) return 'N/A';
-    return '${authors.first.key} (${authors.first.value} bài)';
+    return '${authors.first.displayName} (${authors.first.publicationCount} bài)';
   }
 
-  // 8. Thống kê bài báo theo năm (Phục vụ vẽ biểu đồ xu hướng)
   Map<int, int> get publicationsByYear {
-    final Map<int, int> counts = {};
-    for (var pub in _publications) {
+    final counts = <int, int>{};
+    for (final pub in _publications) {
       if (pub.publicationYear > 0) {
         counts[pub.publicationYear] = (counts[pub.publicationYear] ?? 0) + 1;
       }
     }
     final sortedKeys = counts.keys.toList()..sort();
-    return {for (var k in sortedKeys) k: counts[k]!};
+    return {for (final k in sortedKeys) k: counts[k]!};
   }
 
-  // 9. Năm sôi động nhất (Năm có nhiều bài viết nhất)
   int get mostActiveYear {
     final counts = publicationsByYear;
     if (counts.isEmpty) return 0;
-    int activeYear = 0;
-    int maxCount = -1;
+    var activeYear = 0;
+    var maxCount = -1;
     counts.forEach((year, count) {
       if (count > maxCount) {
         maxCount = count;
@@ -137,4 +158,16 @@ class AnalyticsProvider extends ChangeNotifier {
     });
     return activeYear;
   }
+}
+
+class _TopAuthorAccumulator {
+  String? authorId;
+  String displayName;
+  int publicationCount;
+
+  _TopAuthorAccumulator({
+    required this.authorId,
+    required this.displayName,
+    required this.publicationCount,
+  });
 }
