@@ -7,11 +7,13 @@ import '../services/openalex_service.dart';
 class AuthorDetailScreen extends StatefulWidget {
   final String? authorId;
   final String authorName;
+  final OpenAlexService? service;
 
   const AuthorDetailScreen({
     super.key,
     required this.authorId,
     required this.authorName,
+    this.service,
   });
 
   @override
@@ -19,13 +21,14 @@ class AuthorDetailScreen extends StatefulWidget {
 }
 
 class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
-  final OpenAlexService _openAlexService = OpenAlexService();
+  late final OpenAlexService _openAlexService;
 
   late Future<AuthorDetail> _authorFuture;
 
   @override
   void initState() {
     super.initState();
+    _openAlexService = widget.service ?? OpenAlexService();
     _authorFuture = _openAlexService.resolveAuthorDetail(
       authorId: widget.authorId,
       authorName: widget.authorName,
@@ -46,7 +49,9 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
           'Chi tiết tác giả',
@@ -64,7 +69,9 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.blueAccent,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -78,7 +85,9 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
 
           if (snapshot.hasError) {
             final message = _cleanErrorMessage(snapshot.error.toString());
-            final isMissingProfile = message.contains('Không tìm thấy thông tin chi tiết cho tác giả');
+            final isMissingProfile = message.contains(
+              'Không tìm thấy thông tin chi tiết cho tác giả',
+            );
 
             return Padding(
               padding: const EdgeInsets.all(24.0),
@@ -86,14 +95,21 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    isMissingProfile ? Icons.person_off_outlined : Icons.error_outline,
+                    isMissingProfile
+                        ? Icons.person_off_outlined
+                        : Icons.error_outline,
                     size: 64,
                     color: isMissingProfile ? Colors.amber : Colors.redAccent,
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    isMissingProfile ? 'Chưa có hồ sơ tác giả' : 'Không thể tải thông tin tác giả',
-                    style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
+                    isMissingProfile
+                        ? 'Chưa có hồ sơ tác giả'
+                        : 'Không thể tải thông tin tác giả',
+                    style: GoogleFonts.outfit(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
@@ -121,8 +137,13 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     )
                   else
@@ -133,8 +154,13 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                 ],
@@ -175,11 +201,15 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        author.displayName.isNotEmpty ? author.displayName : widget.authorName,
+                        author.displayName.isNotEmpty
+                            ? author.displayName
+                            : widget.authorName,
                         style: GoogleFonts.outfit(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF0F172A),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -239,7 +269,11 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
                 const SizedBox(height: 16),
                 _buildMetricsHelpCard(context),
                 const SizedBox(height: 24),
-                _buildSectionTitle(context, 'Nơi công tác gần nhất', Icons.apartment_outlined),
+                _buildSectionTitle(
+                  context,
+                  'Nơi công tác gần nhất',
+                  Icons.apartment_outlined,
+                ),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
@@ -259,10 +293,11 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
                       height: 1.5,
                       color: author.lastKnownInstitutionName?.isNotEmpty == true
                           ? isDark
-                              ? Colors.white.withOpacity(0.9)
-                              : Colors.black87
+                                ? Colors.white.withOpacity(0.9)
+                                : Colors.black87
                           : Colors.grey,
-                      fontStyle: author.lastKnownInstitutionName?.isNotEmpty == true
+                      fontStyle:
+                          author.lastKnownInstitutionName?.isNotEmpty == true
                           ? FontStyle.normal
                           : FontStyle.italic,
                     ),
@@ -290,9 +325,7 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white12 : Colors.grey[200]!,
-        ),
+        border: Border.all(color: isDark ? Colors.white12 : Colors.grey[200]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,16 +373,18 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white12 : Colors.grey[200]!,
-        ),
+        border: Border.all(color: isDark ? Colors.white12 : Colors.grey[200]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.info_outline, size: 18, color: Colors.blueAccent),
+              const Icon(
+                Icons.info_outline,
+                size: 18,
+                color: Colors.blueAccent,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Giải thích nhanh các chỉ số',
@@ -436,7 +471,9 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
     if (clean.contains('503')) {
       return 'Máy chủ dữ liệu tác giả đang tạm thời quá tải hoặc bảo trì.';
     }
-    if (clean.contains('SocketException') || clean.contains('Failed host lookup') || clean.contains('Network')) {
+    if (clean.contains('SocketException') ||
+        clean.contains('Failed host lookup') ||
+        clean.contains('Network')) {
       return 'Không có kết nối Internet. Vui lòng kiểm tra lại mạng và thử lại.';
     }
     return clean;

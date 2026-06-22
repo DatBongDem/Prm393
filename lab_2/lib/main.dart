@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'state/analytics_provider.dart';
-import 'screens/search_screen.dart';
+import 'screens/main_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +15,9 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool autoLoadHotTopic;
+
+  const MyApp({super.key, this.autoLoadHotTopic = true});
 
   @override
   Widget build(BuildContext context) {
@@ -62,12 +64,9 @@ class MyApp extends StatelessWidget {
             elevation: 0,
             centerTitle: true,
           ),
-          cardTheme: const CardThemeData(
-            color: Colors.white,
-            elevation: 2,
-          ),
+          cardTheme: const CardThemeData(color: Colors.white, elevation: 2),
         ),
-        home: const SearchScreen(),
+        home: MainShell(autoLoadHotTopic: autoLoadHotTopic),
       ),
     );
   }

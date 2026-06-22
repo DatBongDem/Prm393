@@ -5,26 +5,30 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import '../models/author.dart';
+import '../services/openalex_service.dart';
 import '../state/analytics_provider.dart';
 import 'author_detail_screen.dart';
 
 class TrendScreen extends StatelessWidget {
-  const TrendScreen({super.key});
+  final OpenAlexService? authorService;
+
+  const TrendScreen({super.key, this.authorService});
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<AnalyticsProvider>(context);
+    final provider = context.watch<AnalyticsProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        backgroundColor: isDark
+            ? const Color(0xFF0F172A)
+            : const Color(0xFFF8FAFC),
         appBar: AppBar(
           title: Text(
-            'Phân tích xu hướng',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            'Phân tích',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.w800),
           ),
           backgroundColor: const Color(0xFF1E293B),
           foregroundColor: Colors.white,
@@ -32,8 +36,14 @@ class TrendScreen extends StatelessWidget {
           bottom: TabBar(
             indicatorColor: Colors.blueAccent,
             indicatorWeight: 3,
-            labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
-            unselectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w500, fontSize: 14),
+            labelStyle: GoogleFonts.outfit(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+            unselectedLabelStyle: GoogleFonts.outfit(
+              fontWeight: FontWeight.w500,
+              fontSize: 12,
+            ),
             tabs: const [
               Tab(text: 'Xu hướng năm', icon: Icon(Icons.show_chart)),
               Tab(text: 'Top Tạp chí', icon: Icon(Icons.menu_book)),
@@ -41,30 +51,136 @@ class TrendScreen extends StatelessWidget {
             ],
           ),
         ),
-        body: provider.publications.isEmpty
-            ? _buildEmptyState()
-            : TabBarView(
-                children: [
-                  _buildYearTrendTab(context, provider),
-                  _buildTopJournalsTab(context, provider),
-                  _buildTopAuthorsTab(context, provider),
-                ],
-              ),
+        body: _buildAnalysisBody(context, provider),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildAnalysisBody(BuildContext context, AnalyticsProvider provider) {
+    if (provider.isAnalysisLoading && provider.analysisPublications.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (provider.analysisErrorMessage != null &&
+        provider.analysisPublications.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Không thể tải dữ liệu phân tích',
+        actionLabel: 'Thử lại',
+        onAction: () {
+          if (provider.hasSearchQuery) {
+            provider.searchTopic(provider.currentQuery, addToRecent: false);
+          } else {
+            provider.loadGeneralData(force: true);
+          }
+        },
+      );
+    }
+
+    if (provider.analysisPublications.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.analytics_outlined,
+        title: provider.hasSearchQuery
+            ? 'Không có dữ liệu cho “${provider.currentQuery}”'
+            : 'Chưa có dữ liệu xếp hạng chung',
+        actionLabel: provider.hasSearchQuery ? null : 'Tải dữ liệu chung',
+        onAction: provider.hasSearchQuery
+            ? null
+            : () => provider.loadGeneralData(force: true),
+      );
+    }
+
+    return Column(
+      children: [
+        Container(
+          key: const Key('analysis_mode_banner'),
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: provider.hasSearchQuery
+                  ? const [Color(0xFF2563EB), Color(0xFF7C3AED)]
+                  : const [Color(0xFF0F766E), Color(0xFF0EA5E9)],
+            ),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                provider.hasSearchQuery
+                    ? Icons.manage_search
+                    : Icons.public_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      provider.hasSearchQuery
+                          ? 'Xếp hạng theo từ khóa'
+                          : 'Xếp hạng chung',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      provider.hasSearchQuery
+                          ? '“${provider.currentQuery}” • ${provider.analysisPublications.length} bài mẫu'
+                          : 'Xu hướng nổi bật trong 10 năm gần đây • ${provider.analysisPublications.length} bài mẫu',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withOpacity(0.82),
+                        fontSize: 11,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            children: [
+              _buildYearTrendTab(context, provider),
+              _buildTopJournalsTab(context, provider),
+              _buildTopAuthorsTab(context, provider),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.analytics_outlined, size: 64, color: Colors.grey),
+          Icon(icon, size: 64, color: Colors.grey),
           const SizedBox(height: 16),
           Text(
-            'Không có dữ liệu để hiển thị.',
+            title,
+            textAlign: TextAlign.center,
             style: GoogleFonts.inter(color: Colors.grey, fontSize: 16),
           ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 18),
+            FilledButton(onPressed: onAction, child: Text(actionLabel)),
+          ],
         ],
       ),
     );
@@ -102,7 +218,10 @@ class TrendScreen extends StatelessWidget {
         children: [
           Text(
             'Tốc độ tăng trưởng nghiên cứu',
-            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+            style: GoogleFonts.outfit(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
@@ -124,7 +243,7 @@ class TrendScreen extends StatelessWidget {
                   color: Colors.black.withOpacity(0.02),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
-                )
+                ),
               ],
             ),
             child: LineChart(
@@ -143,8 +262,12 @@ class TrendScreen extends StatelessWidget {
                 ),
                 titlesData: FlTitlesData(
                   show: true,
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -187,13 +310,16 @@ class TrendScreen extends StatelessWidget {
                 borderData: FlBorderData(show: false),
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (spot) => isDark ? const Color(0xFF334155) : Colors.white,
+                    getTooltipColor: (spot) =>
+                        isDark ? const Color(0xFF334155) : Colors.white,
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((touchedSpot) {
                         return LineTooltipItem(
                           'Năm ${touchedSpot.x.toInt()}: ${touchedSpot.y.toInt()} bài',
                           GoogleFonts.inter(
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
                             fontWeight: FontWeight.bold,
                           ),
                         );
@@ -220,7 +346,10 @@ class TrendScreen extends StatelessWidget {
           const SizedBox(height: 24),
           Text(
             'Chi tiết công bố qua các năm',
-            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+            style: GoogleFonts.outfit(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 12),
           ListView.builder(
@@ -245,16 +374,26 @@ class TrendScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.calendar_month, color: Colors.blueAccent, size: 20),
+                        const Icon(
+                          Icons.calendar_month,
+                          color: Colors.blueAccent,
+                          size: 20,
+                        ),
                         const SizedBox(width: 12),
                         Text(
                           'Năm $year',
-                          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.blueAccent.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(20),
@@ -278,7 +417,10 @@ class TrendScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTopJournalsTab(BuildContext context, AnalyticsProvider provider) {
+  Widget _buildTopJournalsTab(
+    BuildContext context,
+    AnalyticsProvider provider,
+  ) {
     final journals = provider.topJournals;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -315,18 +457,20 @@ class TrendScreen extends StatelessWidget {
                   color: index == 0
                       ? Colors.amber
                       : index == 1
-                          ? Colors.grey[400]
-                          : index == 2
-                              ? Colors.brown[300]
-                              : isDark
-                                  ? const Color(0xFF334155)
-                                  : Colors.grey[200],
+                      ? Colors.grey[400]
+                      : index == 2
+                      ? Colors.brown[300]
+                      : isDark
+                      ? const Color(0xFF334155)
+                      : Colors.grey[200],
                   shape: BoxShape.circle,
                 ),
                 child: Text(
                   '${index + 1}',
                   style: GoogleFonts.outfit(
-                    color: index < 3 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                    color: index < 3
+                        ? Colors.white
+                        : (isDark ? Colors.white70 : Colors.black87),
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -355,8 +499,12 @@ class TrendScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                             child: LinearProgressIndicator(
                               value: percentage,
-                              backgroundColor: isDark ? Colors.white10 : Colors.grey[200],
-                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+                              backgroundColor: isDark
+                                  ? Colors.white10
+                                  : Colors.grey[200],
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.blueAccent,
+                              ),
                               minHeight: 8,
                             ),
                           ),
@@ -426,6 +574,7 @@ class TrendScreen extends StatelessWidget {
                     builder: (context) => AuthorDetailScreen(
                       authorId: author.authorId,
                       authorName: author.displayName,
+                      service: authorService,
                     ),
                   ),
                 );
@@ -443,18 +592,20 @@ class TrendScreen extends StatelessWidget {
                         color: index == 0
                             ? Colors.amber
                             : index == 1
-                                ? Colors.grey[400]
-                                : index == 2
-                                    ? Colors.brown[300]
-                                    : isDark
-                                        ? const Color(0xFF334155)
-                                        : Colors.grey[200],
+                            ? Colors.grey[400]
+                            : index == 2
+                            ? Colors.brown[300]
+                            : isDark
+                            ? const Color(0xFF334155)
+                            : Colors.grey[200],
                         shape: BoxShape.circle,
                       ),
                       child: Text(
                         '${index + 1}',
                         style: GoogleFonts.outfit(
-                          color: index < 3 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                          color: index < 3
+                              ? Colors.white
+                              : (isDark ? Colors.white70 : Colors.black87),
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -473,7 +624,9 @@ class TrendScreen extends StatelessWidget {
                                   style: GoogleFonts.inter(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
-                                    color: isDark ? Colors.white70 : Colors.black87,
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.black87,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -481,9 +634,13 @@ class TrendScreen extends StatelessWidget {
                               ),
                               const SizedBox(width: 8),
                               Icon(
-                                author.hasStableProfile ? Icons.open_in_new : Icons.arrow_forward_ios,
+                                author.hasStableProfile
+                                    ? Icons.open_in_new
+                                    : Icons.arrow_forward_ios,
                                 size: author.hasStableProfile ? 16 : 12,
-                                color: author.hasStableProfile ? Colors.blueAccent : Colors.grey,
+                                color: author.hasStableProfile
+                                    ? Colors.blueAccent
+                                    : Colors.grey,
                               ),
                             ],
                           ),
@@ -495,8 +652,13 @@ class TrendScreen extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(4),
                                   child: LinearProgressIndicator(
                                     value: percentage,
-                                    backgroundColor: isDark ? Colors.white10 : Colors.grey[200],
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurpleAccent),
+                                    backgroundColor: isDark
+                                        ? Colors.white10
+                                        : Colors.grey[200],
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                          Colors.deepPurpleAccent,
+                                        ),
                                     minHeight: 8,
                                   ),
                                 ),
