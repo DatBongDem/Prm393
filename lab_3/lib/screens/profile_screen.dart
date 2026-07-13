@@ -81,6 +81,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final primaryColor = widget.remoteConfigService.getPrimaryColor();
     final welcomeMessage = widget.remoteConfigService.getWelcomeMessage();
     final requiredPoints = widget.remoteConfigService.getRequiredPoints();
+    final bonusPoints = widget.remoteConfigService.getBonusPoints();
 
     return Scaffold(
       body: Container(
@@ -145,12 +146,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Promotion Card (Using real journal entries count * 10 for points!)
+                // Promotion Card (Using real journal entries count * 10 + bonusPoints for points!)
                 StreamBuilder<List<QueryDocumentSnapshot>>(
                   stream: FirestoreService().getJournalEntriesStream(),
                   builder: (context, snapshot) {
                     final journalCount = snapshot.data?.length ?? 0;
-                    final userPoints = journalCount * 10;
+                    final userPoints = bonusPoints + (journalCount * 10);
                     
                     return Container(
                       width: double.infinity,
@@ -187,7 +188,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'Bạn đang tích lũy được $userPoints điểm (10 điểm / bài viết nhật ký).',
+                            'Bạn đang tích lũy được $userPoints điểm ($bonusPoints điểm thưởng + 10 điểm / bài viết).',
                             style: const TextStyle(color: Colors.white, fontSize: 14),
                           ),
                           const SizedBox(height: 4),
@@ -245,6 +246,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.military_tech,
                   label: 'required_points',
                   value: '$requiredPoints điểm',
+                  primaryColor: primaryColor,
+                ),
+                _buildConfigTile(
+                  icon: Icons.card_giftcard,
+                  label: 'bonus_points',
+                  value: '$bonusPoints điểm',
                   primaryColor: primaryColor,
                 ),
                 const SizedBox(height: 24),

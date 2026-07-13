@@ -111,8 +111,17 @@ class TrendsScreen extends StatelessWidget {
                         );
                       }
 
-                      final docs = snapshot.data?.docs ?? [];
+                       final docs = snapshot.data?.docs ?? [];
                       
+                      final now = DateTime.now();
+                      // Ngày Thứ 2 đầu tuần này (00:00:00)
+                      final mondayThisWeek = DateTime(now.year, now.month, now.day)
+                          .subtract(Duration(days: now.weekday - 1));
+                      // Ngày Chủ Nhật cuối tuần này (23:59:59)
+                      final sundayThisWeek = mondayThisWeek
+                          .add(const Duration(days: 7))
+                          .subtract(const Duration(microseconds: 1));
+
                       // Khởi tạo danh sách đếm user độc nhất cho từng thứ trong tuần
                       // Key 1 (Monday) -> 7 (Sunday)
                       Map<int, Set<String>> dailyUniqueUsers = {
@@ -127,11 +136,22 @@ class TrendsScreen extends StatelessWidget {
 
                       for (var doc in docs) {
                         final data = doc.data() as Map<String, dynamic>;
+                        final dateStr = data['date'] as String?;
                         final dayOfWeek = data['dayOfWeek'] as int?;
                         final userId = data['userId'] as String?;
-                        if (dayOfWeek != null && userId != null) {
-                          if (dailyUniqueUsers.containsKey(dayOfWeek)) {
-                            dailyUniqueUsers[dayOfWeek]!.add(userId);
+                        
+                        if (dateStr != null && dayOfWeek != null && userId != null) {
+                          try {
+                            final docDate = DateTime.parse(dateStr);
+                            // Chỉ đếm nếu bản ghi nằm trong tuần này (từ Thứ 2 đến Chủ Nhật tuần này)
+                            if (docDate.isAfter(mondayThisWeek.subtract(const Duration(seconds: 1))) &&
+                                docDate.isBefore(sundayThisWeek.add(const Duration(seconds: 1)))) {
+                              if (dailyUniqueUsers.containsKey(dayOfWeek)) {
+                                dailyUniqueUsers[dayOfWeek]!.add(userId);
+                              }
+                            }
+                          } catch (e) {
+                            print('Lỗi parse ngày active user: $e');
                           }
                         }
                       }
@@ -148,6 +168,9 @@ class TrendsScreen extends StatelessWidget {
                           maxDau = users.length;
                         }
                       });
+
+                      // Đặt mốc tỷ lệ tối thiểu là 5 để biểu đồ cân đối khi số lượng user ít (tránh 1 user cột cao 100%)
+                      final double chartMax = maxDau < 5 ? 5.0 : maxDau.toDouble();
 
                       return Column(
                         children: [
@@ -185,13 +208,13 @@ class TrendsScreen extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              _buildBar('Th2', dauCount[1]! / maxDau, primaryColor, count: dauCount[1]!),
-                              _buildBar('Th3', dauCount[2]! / maxDau, primaryColor, count: dauCount[2]!),
-                              _buildBar('Th4', dauCount[3]! / maxDau, primaryColor, count: dauCount[3]!),
-                              _buildBar('Th5', dauCount[4]! / maxDau, primaryColor, count: dauCount[4]!),
-                              _buildBar('Th6', dauCount[5]! / maxDau, primaryColor, count: dauCount[5]!),
-                              _buildBar('T7', dauCount[6]! / maxDau, primaryColor, count: dauCount[6]!),
-                              _buildBar('CN', dauCount[7]! / maxDau, primaryColor, count: dauCount[7]!),
+                              _buildBar('Th2', dauCount[1]! / chartMax, primaryColor, count: dauCount[1]!),
+                              _buildBar('Th3', dauCount[2]! / chartMax, primaryColor, count: dauCount[2]!),
+                              _buildBar('Th4', dauCount[3]! / chartMax, primaryColor, count: dauCount[3]!),
+                              _buildBar('Th5', dauCount[4]! / chartMax, primaryColor, count: dauCount[4]!),
+                              _buildBar('Th6', dauCount[5]! / chartMax, primaryColor, count: dauCount[5]!),
+                              _buildBar('T7', dauCount[6]! / chartMax, primaryColor, count: dauCount[6]!),
+                              _buildBar('CN', dauCount[7]! / chartMax, primaryColor, count: dauCount[7]!),
                             ],
                           ),
                           const SizedBox(height: 16),
@@ -250,23 +273,23 @@ class TrendsScreen extends StatelessWidget {
           child: Stack(
             alignment: Alignment.bottomCenter,
             children: [
-              FractionallySizedBox(
-                // Đảm bảo có chiều cao tối thiểu nhỏ để cột không biến mất hoàn toàn khi bằng 0
-                heightFactor: fillPercentage > 0.05 ? fillPercentage : 0.05,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        primaryColor,
-                        primaryColor.withOpacity(0.6),
-                      ],
+              if (count > 0)
+                FractionallySizedBox(
+                  heightFactor: fillPercentage,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          primaryColor,
+                          primaryColor.withOpacity(0.6),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-              ),
             ],
           ),
         ),
