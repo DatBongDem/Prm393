@@ -19,8 +19,9 @@ class FirebaseRemoteConfigService {
         'welcome_message': 'Chào mừng bạn đến với ứng dụng Lab 3!',
         'primary_color': '#6200EE', // Màu tím Material mặc định
         'required_points': 100,      // Ngưỡng điểm mặc định để nhận khuyến mãi
+        'bonus_points': 20,          // Điểm thưởng mặc định ban đầu
       });
-
+      
       // 3. Thực hiện tải và kích hoạt cấu hình từ xa
       await fetchAndActivate();
     } catch (e) {
@@ -48,6 +49,10 @@ class FirebaseRemoteConfigService {
 
   int getRequiredPoints() {
     return _remoteConfig.getInt('required_points');
+  }
+
+  int getBonusPoints() {
+    return _remoteConfig.getInt('bonus_points');
   }
 
   // Helper lấy mã màu Hex và chuyển đổi sang đối tượng Color của Flutter

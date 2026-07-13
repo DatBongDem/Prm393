@@ -10,16 +10,41 @@ class FirestoreService {
       FirebaseFirestore.instance.collection('active_users');
 
   // 1. Thêm một bản ghi nhật ký mới lên Firestore với userId của người dùng hiện tại
-  Future<void> addJournalEntry(String content) async {
+  Future<void> addJournalEntry(String title, String content) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       await _journalsCollection.add({
+        'title': title,
         'content': content,
         'userId': user?.uid, // Liên kết bản ghi với tài khoản đang đăng nhập
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
       print('Lỗi thêm nhật ký vào Firestore: $e');
+      rethrow;
+    }
+  }
+
+  // 1b. Cập nhật một bản ghi nhật ký trên Firestore
+  Future<void> updateJournalEntry(String docId, String title, String content) async {
+    try {
+      await _journalsCollection.doc(docId).update({
+        'title': title,
+        'content': content,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Lỗi cập nhật nhật ký trên Firestore: $e');
+      rethrow;
+    }
+  }
+
+  // 1c. Xóa một bản ghi nhật ký trên Firestore
+  Future<void> deleteJournalEntry(String docId) async {
+    try {
+      await _journalsCollection.doc(docId).delete();
+    } catch (e) {
+      print('Lỗi xóa nhật ký trên Firestore: $e');
       rethrow;
     }
   }
