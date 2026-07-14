@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/firebase_analytics_service.dart';
 import '../services/firebase_remote_config_service.dart';
 import '../services/firestore_service.dart';
+
 
 class ProfileScreen extends StatefulWidget {
   final FirebaseAnalyticsService analyticsService;
@@ -312,6 +314,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         buttonId: 'logout_btn',
                         screenName: 'Profile',
                       );
+                      try {
+                        await FirebaseMessaging.instance.unsubscribeFromTopic('reminder_journal');
+                        print('FCM: Hủy đăng ký topic reminder_journal thành công do đăng xuất.');
+                      } catch (e) {
+                        print('FCM: Lỗi hủy đăng ký topic: $e');
+                      }
                       await FirebaseAuth.instance.signOut();
                     },
                     icon: Icon(Icons.logout, color: primaryColor),
