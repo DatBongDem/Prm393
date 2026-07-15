@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
@@ -5,15 +6,43 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 // và được đánh dấu bằng @pragma('vm:entry-point') để chạy khi app ở background/terminated
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Đảm bảo Firebase được khởi tạo trước khi sử dụng các dịch vụ của nó trong background isolate
   await Firebase.initializeApp();
-  print("Nhận thông báo chạy ngầm (Background Message ID): ${message.messageId}");
+  print(
+    "Nhận thông báo chạy ngầm (Background Message ID): ${message.messageId}",
+  );
   print("Nội dung tiêu đề: ${message.notification?.title}");
   print("Nội dung thân: ${message.notification?.body}");
+
+  if (message.notification != null) {
+    FirebaseMessagingService.addNotification(
+      message.notification!.title ?? 'Thông báo nhắc nhở',
+      message.notification!.body ?? '',
+    );
+  }
 }
 
 class FirebaseMessagingService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+
+  // Luu lich su cac thong bao FCM nhan duoc trong phien chay hien tai.
+  static final List<Map<String, String>> notificationHistory =
+      <Map<String, String>>[];
+
+  static final StreamController<List<Map<String, String>>>
+  _notificationStreamController =
+      StreamController<List<Map<String, String>>>.broadcast();
+
+  static Stream<List<Map<String, String>>> get notificationStream =>
+      _notificationStreamController.stream;
+
+  static void addNotification(String title, String body) {
+    notificationHistory.insert(0, {
+      'title': title,
+      'body': body,
+      'time': DateTime.now().toLocal().toString().substring(11, 16),
+    });
+    _notificationStreamController.add(List.from(notificationHistory));
+  }
 
   Future<void> initialize() async {
     // 1. Xin quyền thông báo (đặc biệt cần thiết trên iOS và Android 13+)
@@ -45,8 +74,13 @@ class FirebaseMessagingService {
       print('Tiêu đề: ${message.notification?.title}');
       print('Nội dung: ${message.notification?.body}');
       print('Dữ liệu kèm theo (Data): ${message.data}');
-      
-      // Bạn có thể xử lý hiển thị thông báo nội bộ ở đây (ví dụ: dùng flutter_local_notifications)
+
+      if (message.notification != null) {
+        addNotification(
+          message.notification!.title ?? 'Nhắc nhở viết nhật ký',
+          message.notification!.body ?? '',
+        );
+      }
     });
 
     // 5. Lắng nghe khi người dùng nhấn vào thông báo để mở app từ Background
@@ -54,8 +88,13 @@ class FirebaseMessagingService {
       print('App được mở từ thông báo chạy ngầm (Message Opened App):');
       print('Tiêu đề: ${message.notification?.title}');
       print('Dữ liệu kèm theo (Data): ${message.data}');
-      
-      // Bạn có thể điều hướng màn hình dựa trên dữ liệu thông báo ở đây
+
+      if (message.notification != null) {
+        addNotification(
+          message.notification!.title ?? 'Nhắc nhở viết nhật ký',
+          message.notification!.body ?? '',
+        );
+      }
     });
 
     // 6. Xử lý trường hợp app đã bị tắt hẳn (Terminated) và được mở thông qua click vào thông báo
@@ -64,6 +103,13 @@ class FirebaseMessagingService {
       print('App được khởi động từ trạng thái tắt hẳn thông qua thông báo:');
       print('Tiêu đề: ${initialMessage.notification?.title}');
       print('Dữ liệu kèm theo (Data): ${initialMessage.data}');
+
+      if (initialMessage.notification != null) {
+        addNotification(
+          initialMessage.notification!.title ?? 'Nhắc nhở viết nhật ký',
+          initialMessage.notification!.body ?? '',
+        );
+      }
     }
   }
 }

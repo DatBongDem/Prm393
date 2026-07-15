@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../services/firebase_analytics_service.dart';
 import '../services/firebase_remote_config_service.dart';
 
@@ -8,10 +9,10 @@ class LoginScreen extends StatefulWidget {
   final FirebaseRemoteConfigService remoteConfigService;
 
   const LoginScreen({
-    Key? key,
+    super.key,
     required this.analyticsService,
     required this.remoteConfigService,
-  }) : super(key: key);
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -25,13 +26,72 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  Future<void> _handleGoogleSignIn() async {
+    widget.analyticsService.logButtonClick(
+      buttonId: 'google_signin_btn',
+      screenName: 'Login',
+    );
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut(); // Force account chooser
+
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await _auth.signInWithCredential(credential);
+
+      // Log successful event
+      widget.analyticsService.logCustomEvent(
+        name: 'login',
+        parameters: {'method': 'google', 'email': googleUser.email},
+      );
+    } catch (e) {
+      print('Lỗi đăng nhập Google: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Lỗi đăng nhập Google: $e\nVui lòng thử lại hoặc đăng nhập bằng Email.',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _handleAuth() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng điền đầy đủ email và mật khẩu.')),
+        const SnackBar(
+          content: Text('Vui lòng điền đầy đủ email và mật khẩu.'),
+        ),
       );
       return;
     }
@@ -47,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
           buttonId: 'register_submit_btn',
           screenName: 'Login',
         );
-        
+
         await _auth.createUserWithEmailAndPassword(
           email: email,
           password: password,
@@ -81,6 +141,10 @@ class _LoginScreenState extends State<LoginScreen> {
           name: 'user_login_success',
           parameters: {'email': email},
         );
+        widget.analyticsService.logCustomEvent(
+          name: 'login',
+          parameters: {'method': 'email_password', 'email': email},
+        );
       }
     } on FirebaseAuthException catch (e) {
       String message = 'Đã xảy ra lỗi xác thực.';
@@ -95,20 +159,17 @@ class _LoginScreenState extends State<LoginScreen> {
       } else if (e.code == 'invalid-email') {
         message = 'Định dạng email không hợp lệ.';
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.redAccent,
-          ),
+          SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
       }
     } finally {
       if (mounted) {
@@ -130,10 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              primaryColor.withOpacity(0.15),
-              Colors.white,
-            ],
+            colors: [primaryColor.withValues(alpha: 0.15), Colors.white],
           ),
         ),
         child: SafeArea(
@@ -166,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _isSignUpMode 
+                    _isSignUpMode
                         ? 'Tạo tài khoản thật trên Firebase Authentication'
                         : 'Đăng nhập vào tài khoản thật của bạn',
                     style: const TextStyle(fontSize: 14, color: Colors.black54),
@@ -243,6 +301,51 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(
                         color: primaryColor,
                         fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: const [
+                      Expanded(child: Divider()),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Hoặc',
+                          style: TextStyle(color: Colors.black38),
+                        ),
+                      ),
+                      Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _handleGoogleSignIn,
+                      icon: Image.network(
+                        'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1024px-Google_%22G%22_logo.svg.png',
+                        height: 24,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.login, color: Colors.red),
+                      ),
+                      label: const Text(
+                        'Đăng nhập bằng Google',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                          color: Colors.black12,
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
                   ),

@@ -3,20 +3,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'services/firebase_analytics_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/firebase_remote_config_service.dart';
+import 'state/analytics_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 1. Khởi tạo Firebase với cấu hình tự động được sinh ra
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // 2. Cấu hình Firebase Crashlytics để bắt toàn bộ các lỗi Flutter/Dart
   FlutterError.onError = (errorDetails) {
@@ -37,10 +37,12 @@ void main() async {
   await messagingService.initialize();
   await remoteConfigService.initialize();
 
-  runApp(MyApp(
-    analyticsService: analyticsService,
-    remoteConfigService: remoteConfigService,
-  ));
+  runApp(
+    MyApp(
+      analyticsService: analyticsService,
+      remoteConfigService: remoteConfigService,
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -48,17 +50,18 @@ class MyApp extends StatefulWidget {
   final FirebaseRemoteConfigService remoteConfigService;
 
   const MyApp({
-    Key? key,
+    super.key,
     required this.analyticsService,
     required this.remoteConfigService,
-  }) : super(key: key);
+  });
 
   @override
   State<MyApp> createState() => _MyAppState();
 
-  // Hàm helper tĩnh để giúp các Widget con yêu cầu app rebuild lại (ví dụ khi fetch config thành công)
-  static _MyAppState? of(BuildContext context) =>
-      context.findAncestorStateOfType<_MyAppState>();
+  // Ham helper tinh de giup cac Widget con yeu cau app rebuild lai khi Remote Config thay doi.
+  static void refresh(BuildContext context) {
+    context.findAncestorStateOfType<_MyAppState>()?.refreshApp();
+  }
 }
 
 class _MyAppState extends State<MyApp> {
@@ -71,44 +74,47 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     final primaryColor = widget.remoteConfigService.getPrimaryColor();
 
-    return MaterialApp(
-      title: 'Lab 3 Firebase App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          primary: primaryColor,
+    return ChangeNotifierProvider(
+      create: (context) => AnalyticsProvider()..loadGeneralData(),
+      child: MaterialApp(
+        title: 'Lab 3 Firebase App',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: primaryColor,
+            primary: primaryColor,
+          ),
+          appBarTheme: AppBarTheme(
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
+          ),
         ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
+        home: StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(color: primaryColor),
+                ),
+              );
+            }
+            if (snapshot.hasData) {
+              // Đã đăng nhập -> Vào Dashboard chính
+              return MainNavigationScreen(
+                analyticsService: widget.analyticsService,
+                remoteConfigService: widget.remoteConfigService,
+              );
+            } else {
+              // Chưa đăng nhập -> Vào màn hình Login
+              return LoginScreen(
+                analyticsService: widget.analyticsService,
+                remoteConfigService: widget.remoteConfigService,
+              );
+            }
+          },
         ),
-      ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(color: primaryColor),
-              ),
-            );
-          }
-          if (snapshot.hasData) {
-            // Đã đăng nhập -> Vào Dashboard chính
-            return MainNavigationScreen(
-              analyticsService: widget.analyticsService,
-              remoteConfigService: widget.remoteConfigService,
-            );
-          } else {
-            // Chưa đăng nhập -> Vào màn hình Login
-            return LoginScreen(
-              analyticsService: widget.analyticsService,
-              remoteConfigService: widget.remoteConfigService,
-            );
-          }
-        },
       ),
     );
   }
