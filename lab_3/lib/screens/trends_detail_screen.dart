@@ -5,10 +5,7 @@ import '../services/firebase_remote_config_service.dart';
 class TrendsDetailScreen extends StatelessWidget {
   final FirebaseRemoteConfigService remoteConfigService;
 
-  const TrendsDetailScreen({
-    Key? key,
-    required this.remoteConfigService,
-  }) : super(key: key);
+  const TrendsDetailScreen({super.key, required this.remoteConfigService});
 
   @override
   Widget build(BuildContext context) {
@@ -25,10 +22,7 @@ class TrendsDetailScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              primaryColor.withOpacity(0.05),
-              Colors.white,
-            ],
+            colors: [primaryColor.withValues(alpha: 0.05), Colors.white],
           ),
         ),
         child: Padding(
@@ -42,10 +36,12 @@ class TrendsDetailScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: primaryColor.withOpacity(0.2)),
+                  border: Border.all(
+                    color: primaryColor.withValues(alpha: 0.2),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: primaryColor.withOpacity(0.03),
+                      color: primaryColor.withValues(alpha: 0.03),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -71,7 +67,11 @@ class TrendsDetailScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     const Text(
                       'DAU là số lượng người dùng độc nhất mở và tương tác với ứng dụng trong ngày. Phân tích DAU giúp doanh nghiệp Mobile đo lường chi phí marketing (CAC) và giữ chân khách hàng hiệu quả.',
-                      style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
@@ -86,7 +86,7 @@ class TrendsDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              
+
               // Timeline List of Active Users
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
@@ -103,7 +103,7 @@ class TrendsDetailScreen extends StatelessWidget {
                         ),
                       );
                     }
-                    
+
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
@@ -122,11 +122,12 @@ class TrendsDetailScreen extends StatelessWidget {
                         final email = data['email'] ?? 'Ẩn danh';
                         final dateStr = data['date'] ?? '';
                         final timestamp = data['timestamp'] as Timestamp?;
-                        
+
                         String timeStr = 'Đang đồng bộ...';
                         if (timestamp != null) {
                           final time = timestamp.toDate();
-                          timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+                          timeStr =
+                              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
                         }
 
                         return Card(
@@ -137,7 +138,10 @@ class TrendsDetailScreen extends StatelessWidget {
                           elevation: 0,
                           color: Colors.white,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: Colors.grey.shade100),
@@ -146,13 +150,20 @@ class TrendsDetailScreen extends StatelessWidget {
                               children: [
                                 CircleAvatar(
                                   radius: 18,
-                                  backgroundColor: primaryColor.withOpacity(0.1),
-                                  child: Icon(Icons.flash_on, color: primaryColor, size: 18),
+                                  backgroundColor: primaryColor.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                  child: Icon(
+                                    Icons.flash_on,
+                                    color: primaryColor,
+                                    size: 18,
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         email,

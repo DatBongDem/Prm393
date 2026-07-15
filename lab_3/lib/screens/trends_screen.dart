@@ -11,10 +11,10 @@ class TrendsScreen extends StatelessWidget {
   final FirestoreService _firestoreService = FirestoreService();
 
   TrendsScreen({
-    Key? key,
+    super.key,
     required this.analyticsService,
     required this.remoteConfigService,
-  }) : super(key: key);
+  });
 
   void _viewDetails(BuildContext context, int totalActiveUsers) {
     analyticsService.logCustomEvent(
@@ -31,9 +31,8 @@ class TrendsScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => TrendsDetailScreen(
-          remoteConfigService: remoteConfigService,
-        ),
+        builder: (context) =>
+            TrendsDetailScreen(remoteConfigService: remoteConfigService),
       ),
     );
   }
@@ -48,10 +47,7 @@ class TrendsScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              primaryColor.withOpacity(0.05),
-              Colors.white,
-            ],
+            colors: [primaryColor.withValues(alpha: 0.05), Colors.white],
           ),
         ),
         child: SafeArea(
@@ -74,7 +70,7 @@ class TrendsScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 14, color: Colors.black54),
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Real-time Chart Card
                 Container(
                   padding: const EdgeInsets.all(24),
@@ -84,7 +80,7 @@ class TrendsScreen extends StatelessWidget {
                     border: Border.all(color: Colors.grey.shade200),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
+                        color: Colors.black.withValues(alpha: 0.02),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
@@ -101,7 +97,7 @@ class TrendsScreen extends StatelessWidget {
                           ),
                         );
                       }
-                      
+
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
                           child: Padding(
@@ -111,12 +107,15 @@ class TrendsScreen extends StatelessWidget {
                         );
                       }
 
-                       final docs = snapshot.data?.docs ?? [];
-                      
+                      final docs = snapshot.data?.docs ?? [];
+
                       final now = DateTime.now();
                       // Ngày Thứ 2 đầu tuần này (00:00:00)
-                      final mondayThisWeek = DateTime(now.year, now.month, now.day)
-                          .subtract(Duration(days: now.weekday - 1));
+                      final mondayThisWeek = DateTime(
+                        now.year,
+                        now.month,
+                        now.day,
+                      ).subtract(Duration(days: now.weekday - 1));
                       // Ngày Chủ Nhật cuối tuần này (23:59:59)
                       final sundayThisWeek = mondayThisWeek
                           .add(const Duration(days: 7))
@@ -139,13 +138,23 @@ class TrendsScreen extends StatelessWidget {
                         final dateStr = data['date'] as String?;
                         final dayOfWeek = data['dayOfWeek'] as int?;
                         final userId = data['userId'] as String?;
-                        
-                        if (dateStr != null && dayOfWeek != null && userId != null) {
+
+                        if (dateStr != null &&
+                            dayOfWeek != null &&
+                            userId != null) {
                           try {
                             final docDate = DateTime.parse(dateStr);
                             // Chỉ đếm nếu bản ghi nằm trong tuần này (từ Thứ 2 đến Chủ Nhật tuần này)
-                            if (docDate.isAfter(mondayThisWeek.subtract(const Duration(seconds: 1))) &&
-                                docDate.isBefore(sundayThisWeek.add(const Duration(seconds: 1)))) {
+                            if (docDate.isAfter(
+                                  mondayThisWeek.subtract(
+                                    const Duration(seconds: 1),
+                                  ),
+                                ) &&
+                                docDate.isBefore(
+                                  sundayThisWeek.add(
+                                    const Duration(seconds: 1),
+                                  ),
+                                )) {
                               if (dailyUniqueUsers.containsKey(dayOfWeek)) {
                                 dailyUniqueUsers[dayOfWeek]!.add(userId);
                               }
@@ -160,7 +169,7 @@ class TrendsScreen extends StatelessWidget {
                       Map<int, int> dauCount = {};
                       int maxDau = 1;
                       int totalRecords = 0;
-                      
+
                       dailyUniqueUsers.forEach((day, users) {
                         dauCount[day] = users.length;
                         totalRecords += users.length;
@@ -170,7 +179,9 @@ class TrendsScreen extends StatelessWidget {
                       });
 
                       // Đặt mốc tỷ lệ tối thiểu là 5 để biểu đồ cân đối khi số lượng user ít (tránh 1 user cột cao 100%)
-                      final double chartMax = maxDau < 5 ? 5.0 : maxDau.toDouble();
+                      final double chartMax = maxDau < 5
+                          ? 5.0
+                          : maxDau.toDouble();
 
                       return Column(
                         children: [
@@ -186,9 +197,12 @@ class TrendsScreen extends StatelessWidget {
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
+                                  color: Colors.green.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -208,20 +222,59 @@ class TrendsScreen extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              _buildBar('Th2', dauCount[1]! / chartMax, primaryColor, count: dauCount[1]!),
-                              _buildBar('Th3', dauCount[2]! / chartMax, primaryColor, count: dauCount[2]!),
-                              _buildBar('Th4', dauCount[3]! / chartMax, primaryColor, count: dauCount[3]!),
-                              _buildBar('Th5', dauCount[4]! / chartMax, primaryColor, count: dauCount[4]!),
-                              _buildBar('Th6', dauCount[5]! / chartMax, primaryColor, count: dauCount[5]!),
-                              _buildBar('T7', dauCount[6]! / chartMax, primaryColor, count: dauCount[6]!),
-                              _buildBar('CN', dauCount[7]! / chartMax, primaryColor, count: dauCount[7]!),
+                              _buildBar(
+                                'Th2',
+                                dauCount[1]! / chartMax,
+                                primaryColor,
+                                count: dauCount[1]!,
+                              ),
+                              _buildBar(
+                                'Th3',
+                                dauCount[2]! / chartMax,
+                                primaryColor,
+                                count: dauCount[2]!,
+                              ),
+                              _buildBar(
+                                'Th4',
+                                dauCount[3]! / chartMax,
+                                primaryColor,
+                                count: dauCount[3]!,
+                              ),
+                              _buildBar(
+                                'Th5',
+                                dauCount[4]! / chartMax,
+                                primaryColor,
+                                count: dauCount[4]!,
+                              ),
+                              _buildBar(
+                                'Th6',
+                                dauCount[5]! / chartMax,
+                                primaryColor,
+                                count: dauCount[5]!,
+                              ),
+                              _buildBar(
+                                'T7',
+                                dauCount[6]! / chartMax,
+                                primaryColor,
+                                count: dauCount[6]!,
+                              ),
+                              _buildBar(
+                                'CN',
+                                dauCount[7]! / chartMax,
+                                primaryColor,
+                                count: dauCount[7]!,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 16),
                           Center(
                             child: ElevatedButton.icon(
-                              onPressed: () => _viewDetails(context, totalRecords),
-                              icon: const Icon(Icons.analytics, color: Colors.white),
+                              onPressed: () =>
+                                  _viewDetails(context, totalRecords),
+                              icon: const Icon(
+                                Icons.analytics,
+                                color: Colors.white,
+                              ),
                               label: const Text('Xem Chi Tiết Phân Tích'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: primaryColor,
@@ -250,7 +303,12 @@ class TrendsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBar(String label, double fillPercentage, Color primaryColor, {required int count}) {
+  Widget _buildBar(
+    String label,
+    double fillPercentage,
+    Color primaryColor, {
+    required int count,
+  }) {
     return Column(
       children: [
         // Hiển thị số lượng DAU trên đỉnh cột
@@ -283,7 +341,7 @@ class TrendsScreen extends StatelessWidget {
                         end: Alignment.bottomCenter,
                         colors: [
                           primaryColor,
-                          primaryColor.withOpacity(0.6),
+                          primaryColor.withValues(alpha: 0.6),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(8),

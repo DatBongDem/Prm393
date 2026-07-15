@@ -12,16 +12,17 @@ class JournalScreen extends StatefulWidget {
   final FirebaseRemoteConfigService remoteConfigService;
 
   const JournalScreen({
-    Key? key,
+    super.key,
     required this.analyticsService,
     required this.remoteConfigService,
-  }) : super(key: key);
+  });
 
   @override
   State<JournalScreen> createState() => _JournalScreenState();
 }
 
-class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserver {
+class _JournalScreenState extends State<JournalScreen>
+    with WidgetsBindingObserver {
   final FirestoreService _firestoreService = FirestoreService();
   Timer? _reminderTimer;
   StreamSubscription<List<QueryDocumentSnapshot>>? _journalSubscription;
@@ -38,7 +39,9 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
     });
 
     // Lắng nghe danh sách nhật ký thời gian thực để bật/tắt nhắc nhở
-    _journalSubscription = _firestoreService.getJournalEntriesStream().listen((docs) {
+    _journalSubscription = _firestoreService.getJournalEntriesStream().listen((
+      docs,
+    ) {
       final now = DateTime.now();
       // Lọc các nhật ký được viết trong ngày hôm nay
       final todayDocs = docs.where((doc) {
@@ -46,7 +49,9 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
         final timestamp = data['createdAt'] as Timestamp?;
         if (timestamp == null) return true; // Bản ghi mới tạo chưa đồng bộ xong
         final date = timestamp.toDate();
-        return date.year == now.year && date.month == now.month && date.day == now.day;
+        return date.year == now.year &&
+            date.month == now.month &&
+            date.day == now.day;
       }).toList();
 
       if (todayDocs.isEmpty) {
@@ -77,12 +82,16 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
     // Nếu Timer đang hoạt động thì không tạo thêm
     if (_reminderTimer != null && _reminderTimer!.isActive) return;
 
-    print('FCM Reminder: Bật Timer nhắc nhở định kỳ vì chưa có nhật ký hôm nay.');
+    print(
+      'FCM Reminder: Bật Timer nhắc nhở định kỳ vì chưa có nhật ký hôm nay.',
+    );
     // Tự động gửi thông báo nhắc nhở đầu tiên ngay khi kích hoạt (chỉ gửi khi app chạy ngầm)
     if (_lifecycleState != AppLifecycleState.resumed) {
       FcmSenderService.sendJournalReminderNotification();
     } else {
-      print('FCM Reminder: App đang hiển thị (Foreground), bỏ qua gửi thông báo tức thời.');
+      print(
+        'FCM Reminder: App đang hiển thị (Foreground), bỏ qua gửi thông báo tức thời.',
+      );
     }
 
     // Thiết lập lặp lại định kỳ mỗi 1 phút để test trực quan
@@ -92,7 +101,9 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
       if (_lifecycleState != AppLifecycleState.resumed) {
         FcmSenderService.sendJournalReminderNotification();
       } else {
-        print('FCM Reminder: App đang hiển thị (Foreground), không gửi thông báo nhắc nhở.');
+        print(
+          'FCM Reminder: App đang hiển thị (Foreground), không gửi thông báo nhắc nhở.',
+        );
       }
     });
   }
@@ -109,7 +120,9 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
     if (timestamp == null) return true;
     final date = timestamp.toDate();
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   Future<void> _addJournal(String title, String content) async {
@@ -196,9 +209,7 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
       // 2. Gửi sự kiện xóa lên Firebase Analytics
       widget.analyticsService.logCustomEvent(
         name: 'delete_journal',
-        parameters: {
-          'source': 'firestore',
-        },
+        parameters: {'source': 'firestore'},
       );
 
       if (mounted) {
@@ -248,12 +259,16 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Thêm Nhật Ký Mới',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                  Expanded(
+                    child: Text(
+                      'Thêm Nhật Ký Mới',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -310,7 +325,9 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
                   if (title.isEmpty || content.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Vui lòng nhập đầy đủ tiêu đề và nội dung!'),
+                        content: Text(
+                          'Vui lòng nhập đầy đủ tiêu đề và nội dung!',
+                        ),
                         backgroundColor: Colors.orange,
                         behavior: SnackBarBehavior.floating,
                       ),
@@ -342,7 +359,11 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
   }
 
   void _showEditJournalBottomSheet(
-      String docId, String currentTitle, String currentContent, Timestamp? timestamp) {
+    String docId,
+    String currentTitle,
+    String currentContent,
+    Timestamp? timestamp,
+  ) {
     final titleController = TextEditingController(text: currentTitle);
     final contentController = TextEditingController(text: currentContent);
     final primaryColor = widget.remoteConfigService.getPrimaryColor();
@@ -369,12 +390,16 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Chi Tiết Nhật Ký',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                  Expanded(
+                    child: Text(
+                      'Chi Tiết Nhật Ký',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -386,7 +411,10 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
               const SizedBox(height: 8),
               if (!isToday) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.blue.shade50,
                     borderRadius: BorderRadius.circular(8),
@@ -394,12 +422,19 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Colors.blue.shade800, size: 18),
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.blue.shade800,
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Nhật ký từ các ngày trước có thể chỉnh sửa nhưng không thể xóa.',
-                          style: TextStyle(color: Colors.blue.shade900, fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.blue.shade900,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -460,7 +495,8 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
                             builder: (context) => AlertDialog(
                               title: const Text('Xác nhận xóa'),
                               content: const Text(
-                                  'Bạn có chắc chắn muốn xóa bản ghi nhật ký này không?'),
+                                'Bạn có chắc chắn muốn xóa bản ghi nhật ký này không?',
+                              ),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
@@ -507,7 +543,8 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                  'Vui lòng nhập đầy đủ tiêu đề và nội dung!'),
+                                'Vui lòng nhập đầy đủ tiêu đề và nội dung!',
+                              ),
                               backgroundColor: Colors.orange,
                               behavior: SnackBarBehavior.floating,
                             ),
@@ -529,7 +566,9 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
                       child: const Text(
                         'Cập Nhật',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -552,21 +591,14 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
         backgroundColor: primaryColor,
         shape: const CircleBorder(),
         elevation: 4,
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
-          size: 28,
-        ),
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              primaryColor.withOpacity(0.05),
-              Colors.white,
-            ],
+            colors: [primaryColor.withValues(alpha: 0.05), Colors.white],
           ),
         ),
         child: SafeArea(
@@ -613,8 +645,7 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
                         );
                       }
 
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return Center(
                           child: CircularProgressIndicator(color: primaryColor),
                         );
@@ -626,14 +657,19 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.edit_note,
-                                  size: 64, color: Colors.grey.shade400),
+                              Icon(
+                                Icons.edit_note,
+                                size: 64,
+                                color: Colors.grey.shade400,
+                              ),
                               const SizedBox(height: 16),
                               Text(
                                 'Chưa có bản ghi nhật ký nào.\nHãy nhấn nút + để tạo mới!',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                    color: Colors.grey.shade500, fontSize: 14),
+                                  color: Colors.grey.shade500,
+                                  fontSize: 14,
+                                ),
                               ),
                             ],
                           ),
@@ -642,7 +678,9 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
 
                       return ListView.builder(
                         itemCount: docs.length,
-                        padding: const EdgeInsets.only(bottom: 80), // Chừa khoảng trống cho FAB
+                        padding: const EdgeInsets.only(
+                          bottom: 80,
+                        ), // Chừa khoảng trống cho FAB
                         itemBuilder: (context, index) {
                           final doc = docs[index];
                           final data = doc.data() as Map<String, dynamic>;
@@ -668,7 +706,11 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
                             child: InkWell(
                               borderRadius: BorderRadius.circular(16),
                               onTap: () => _showEditJournalBottomSheet(
-                                  doc.id, title, content, timestamp),
+                                doc.id,
+                                title,
+                                content,
+                                timestamp,
+                              ),
                               child: Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
@@ -682,7 +724,9 @@ class _JournalScreenState extends State<JournalScreen> with WidgetsBindingObserv
                                   children: [
                                     Icon(
                                       Icons.wb_sunny_outlined,
-                                      color: primaryColor.withOpacity(0.6),
+                                      color: primaryColor.withValues(
+                                        alpha: 0.6,
+                                      ),
                                       size: 24,
                                     ),
                                     const SizedBox(width: 12),

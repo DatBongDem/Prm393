@@ -3,11 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class FirestoreService {
   // Tham chiếu đến các collection trên Cloud Firestore
-  final CollectionReference _journalsCollection =
-      FirebaseFirestore.instance.collection('journals');
-      
-  final CollectionReference _activeUsersCollection =
-      FirebaseFirestore.instance.collection('active_users');
+  final CollectionReference _journalsCollection = FirebaseFirestore.instance
+      .collection('journals');
+
+  final CollectionReference _activeUsersCollection = FirebaseFirestore.instance
+      .collection('active_users');
 
   // 1. Thêm một bản ghi nhật ký mới lên Firestore với userId của người dùng hiện tại
   Future<void> addJournalEntry(String title, String content) async {
@@ -26,7 +26,11 @@ class FirestoreService {
   }
 
   // 1b. Cập nhật một bản ghi nhật ký trên Firestore
-  Future<void> updateJournalEntry(String docId, String title, String content) async {
+  Future<void> updateJournalEntry(
+    String docId,
+    String title,
+    String content,
+  ) async {
     try {
       await _journalsCollection.doc(docId).update({
         'title': title,
@@ -61,10 +65,10 @@ class FirestoreService {
           docs.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>? ?? {};
             final bData = b.data() as Map<String, dynamic>? ?? {};
-            
+
             final aTime = aData['createdAt'] as Timestamp?;
             final bTime = bData['createdAt'] as Timestamp?;
-            
+
             if (aTime == null) return 1;
             if (bTime == null) return -1;
             return bTime.compareTo(aTime); // b so với a để xếp giảm dần
@@ -81,7 +85,8 @@ class FirestoreService {
 
       final now = DateTime.now();
       // Định dạng ngày: YYYY-MM-DD để làm mã định danh duy nhất trong ngày của user đó
-      final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+      final dateStr =
+          "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
       final docId = "${user.uid}_$dateStr";
 
       await _activeUsersCollection.doc(docId).set({
@@ -100,5 +105,68 @@ class FirestoreService {
   // 4. Lấy Stream danh sách hoạt động của tất cả người dùng để vẽ biểu đồ hoạt động thực tế
   Stream<QuerySnapshot> getWeeklyActiveUsersStream() {
     return _activeUsersCollection.snapshots();
+  }
+
+  // 5. Collection ghi nhận lịch sử tìm kiếm từ khóa
+  final CollectionReference _searchHistoryCollection = FirebaseFirestore
+      .instance
+      .collection('search_history');
+
+  // Ghi nhận tìm kiếm của người dùng
+  Future<void> logSearchQuery(String query) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final trimmedQuery = query.trim().toLowerCase();
+      if (trimmedQuery.isEmpty) return;
+
+      await _searchHistoryCollection.add({
+        'query': trimmedQuery,
+        'userId': user?.uid,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      print('Firestore: Đã ghi nhận tìm kiếm "$trimmedQuery" thành công');
+    } catch (e) {
+      print('Lỗi ghi nhận tìm kiếm: $e');
+    }
+  }
+
+  // Lấy Stream 5 từ khóa tìm kiếm nhiều nhất trong 7 ngày gần nhất (kèm fallback để tránh trống giao diện)
+  Stream<List<Map<String, dynamic>>> getTopSearchedKeywordsStream() {
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    return _searchHistoryCollection
+        .where(
+          'timestamp',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo),
+        )
+        .snapshots()
+        .map((snapshot) {
+          final Map<String, int> counts = {};
+          for (var doc in snapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>? ?? {};
+            final q = data['query'] as String?;
+            if (q != null && q.isNotEmpty) {
+              final formatted = q
+                  .split(' ')
+                  .map((word) {
+                    if (word.isEmpty) return '';
+                    return '${word[0].toUpperCase()}${word.substring(1)}';
+                  })
+                  .join(' ');
+              counts[formatted] = (counts[formatted] ?? 0) + 1;
+            }
+          }
+
+          final sorted = counts.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+
+          if (sorted.isEmpty) {
+            return const [];
+          }
+
+          return sorted
+              .take(5)
+              .map((entry) => {'keyword': entry.key, 'count': entry.value})
+              .toList();
+        });
   }
 }
