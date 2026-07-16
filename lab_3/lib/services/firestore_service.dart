@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class FirestoreService {
   // Tham chiếu đến các collection trên Cloud Firestore
@@ -237,6 +238,74 @@ class FirestoreService {
       print('Firestore: Đã xóa tất cả thông báo của user.');
     } catch (e) {
       print('Lỗi xóa tất cả thông báo: $e');
+      rethrow;
+    }
+  }
+
+  // 10. Lưu thông tin báo cáo PDF đã xuất
+  final CollectionReference _pdfReportsCollection = FirebaseFirestore.instance
+      .collection('pdf_reports');
+
+  Future<void> savePdfReportInfo({
+    required String topic,
+    required String url,
+    required String fileName,
+  }) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      await _pdfReportsCollection.add({
+        'userId': user.uid,
+        'topic': topic,
+        'pdfUrl': url,
+        'fileName': fileName,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      print('Firestore: Đã lưu thông tin báo cáo PDF vào Firestore.');
+    } catch (e) {
+      print('Lỗi lưu thông tin báo cáo PDF vào Firestore: $e');
+      rethrow;
+    }
+  }
+
+  // 11. Lấy Stream danh sách báo cáo PDF của user hiện tại
+  Stream<List<QueryDocumentSnapshot>> getPdfReportsStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    return _pdfReportsCollection
+        .where('userId', isEqualTo: user?.uid)
+        .snapshots()
+        .map((snapshot) {
+          final docs = snapshot.docs;
+          docs.sort((a, b) {
+            final aData = a.data() as Map<String, dynamic>? ?? {};
+            final bData = b.data() as Map<String, dynamic>? ?? {};
+            final aTime = aData['createdAt'] as Timestamp?;
+            final bTime = bData['createdAt'] as Timestamp?;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return bTime.compareTo(aTime);
+          });
+          return docs;
+        });
+  }
+
+  // 12. Xóa báo cáo PDF khỏi Firestore và Firebase Storage
+  Future<void> deletePdfReport(String docId, String url) async {
+    try {
+      // 1. Xóa khỏi Firestore
+      await _pdfReportsCollection.doc(docId).delete();
+      print('Firestore: Đã xóa bản ghi báo cáo PDF khỏi Firestore.');
+
+      // 2. Xóa khỏi Firebase Storage
+      try {
+        final storageRef = FirebaseStorage.instance.refFromURL(url);
+        await storageRef.delete();
+        print('Firebase Storage: Đã xóa file báo cáo PDF thành công.');
+      } catch (storageError) {
+        print('Lỗi khi xóa file trên Firebase Storage: $storageError');
+      }
+    } catch (e) {
+      print('Lỗi xóa báo cáo PDF: $e');
       rethrow;
     }
   }

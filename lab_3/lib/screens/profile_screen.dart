@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -56,7 +57,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-
   Future<void> _exportPdfReport(AnalyticsProvider provider) async {
     final topic = provider.hasSearchQuery
         ? provider.currentQuery
@@ -87,10 +87,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String? url;
     String? errorMessage;
     try {
-      url = await PdfReportService.generateAndUploadReport(
+      final uploadResult = await PdfReportService.generateAndUploadReport(
         topic: topic,
         publications: publications,
       );
+      url = uploadResult['url'];
+      final fileName = uploadResult['fileName'];
+
+      if (url != null && fileName != null) {
+        await FirestoreService().savePdfReportInfo(
+          topic: topic,
+          url: url,
+          fileName: fileName,
+        );
+      } else {
+        throw Exception('Không nhận được thông tin phản hồi từ Storage.');
+      }
     } catch (e) {
       errorMessage = e.toString();
       print('Lỗi xuất và upload PDF: $e');
@@ -113,12 +125,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Xuất báo cáo thất bại: ${errorMessage ?? "Lỗi không xác định"}'),
+          content: Text(
+            'Xuất báo cáo thất bại: ${errorMessage ?? "Lỗi không xác định"}',
+          ),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
       );
     }
+  }
+
+  void _confirmDeleteReport(String docId, String pdfUrl) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xác nhận xóa'),
+        content: const Text('Bạn có chắc chắn muốn xóa báo cáo này khỏi lịch sử và Firebase Storage không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              
+              // Hiển thị trạng thái xóa
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Đang xóa báo cáo...'),
+                  duration: Duration(seconds: 1),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+
+              try {
+                await FirestoreService().deletePdfReport(docId, pdfUrl);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã xóa báo cáo thành công!'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Xóa thất bại: $e'),
+                    backgroundColor: Colors.redAccent,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _triggerCrash() {
@@ -271,12 +340,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ListenableBuilder(
                   listenable: widget.remoteConfigService,
                   builder: (context, _) {
-                    final welcomeMessage =
-                        widget.remoteConfigService.getWelcomeMessage();
-                    final maxJournals =
-                        widget.remoteConfigService.getMaxJournals();
-                    final maxKeywords =
-                        widget.remoteConfigService.getMaxKeywords();
+                    final welcomeMessage = widget.remoteConfigService
+                        .getWelcomeMessage();
+                    final maxJournals = widget.remoteConfigService
+                        .getMaxJournals();
+                    final maxKeywords = widget.remoteConfigService
+                        .getMaxKeywords();
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -305,7 +374,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(Icons.sync, size: 14, color: Colors.grey.shade500),
+                            Icon(
+                              Icons.sync,
+                              size: 14,
+                              color: Colors.grey.shade500,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'Tự động đồng bộ theo thời gian thực',
@@ -333,7 +406,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                
+
                 // ==========================================
                 // PHẦN GIẢ LẬP GỬI THÔNG BÁO FCM (DEMO)
                 // ==========================================
@@ -357,7 +430,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           FcmSenderService.sendJournalReminderNotification();
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Đang gửi thông báo nhắc nhở viết nhật ký...'),
+                              content: Text(
+                                'Đang gửi thông báo nhắc nhở viết nhật ký...',
+                              ),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -374,7 +449,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           );
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Đang gửi thông báo xu hướng mới...'),
+                              content: Text(
+                                'Đang gửi thông báo xu hướng mới...',
+                              ),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -391,7 +468,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           );
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Đang gửi thông báo bài báo hot...'),
+                              content: Text(
+                                'Đang gửi thông báo bài báo hot...',
+                              ),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -613,7 +692,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Divider(),
             const SizedBox(height: 8),
             Text(
-              'Link tải báo cáo PDF:',
+              'Báo cáo vừa xuất:',
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
@@ -639,6 +718,147 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 12),
+          Text(
+            'Lịch sử báo cáo đã xuất (Tối đa 5 báo cáo gần nhất)',
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 10),
+          StreamBuilder<List<QueryDocumentSnapshot>>(
+            stream: FirestoreService().getPdfReportsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    'Không thể tải lịch sử: ${snapshot.error}',
+                    style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
+                  ),
+                );
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                );
+              }
+
+              final reports = snapshot.data ?? [];
+              if (reports.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  child: Text(
+                    'Chưa có báo cáo nào được lưu trữ.',
+                    style: GoogleFonts.inter(
+                      color: Colors.grey.shade500,
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: reports.length > 5 ? 5 : reports.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final report = reports[index];
+                  final data = report.data() as Map<String, dynamic>? ?? {};
+                  final docId = report.id;
+                  final topicName = data['topic'] ?? 'N/A';
+                  final pdfUrl = data['pdfUrl'] ?? '';
+                  final createdAt = data['createdAt'] as Timestamp?;
+                  
+                  String timeStr = 'N/A';
+                  if (createdAt != null) {
+                    final dateTime = createdAt.toDate().toLocal();
+                    timeStr = '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')} - ${dateTime.day}/${dateTime.month}/${dateTime.year}';
+                  }
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark ? Colors.white10 : Colors.grey.shade200,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.picture_as_pdf,
+                          color: Colors.redAccent.shade200,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                topicName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                timeStr,
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: Icon(Icons.open_in_new, color: primaryColor, size: 18),
+                          tooltip: 'Mở PDF',
+                          onPressed: pdfUrl.isEmpty
+                              ? null
+                              : () async {
+                                  final uri = Uri.parse(pdfUrl);
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                          tooltip: 'Xóa',
+                          onPressed: () => _confirmDeleteReport(docId, pdfUrl),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         ],
       ),
     );
@@ -728,7 +948,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       minimumSize: const Size(60, 30),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text('Xóa tất cả', style: TextStyle(fontSize: 12)),
+                    child: const Text(
+                      'Xóa tất cả',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
                 ),
               ),
@@ -737,14 +960,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   shrinkWrap: true,
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   itemCount: docs.length > 5 ? 5 : docs.length,
-                  separatorBuilder: (context, index) => const Divider(height: 16),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 16),
                   itemBuilder: (context, index) {
                     final doc = docs[index];
                     final notif = doc.data() as Map<String, dynamic>;
                     final title = notif['title'] ?? '';
                     final body = notif['body'] ?? '';
                     final timestamp = notif['receivedAt'] as Timestamp?;
-                    
+
                     String timeStr = 'Đang nhận...';
                     if (timestamp != null) {
                       final date = timestamp.toDate();
@@ -766,7 +990,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Text(
@@ -774,7 +999,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       style: GoogleFonts.outfit(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: isDark ? Colors.white : Colors.black87,
+                                        color: isDark
+                                            ? Colors.white
+                                            : Colors.black87,
                                       ),
                                     ),
                                   ),
@@ -792,7 +1019,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 body,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
-                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                  color: isDark
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600,
                                   height: 1.3,
                                 ),
                               ),
@@ -801,7 +1030,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 16,
+                            color: Colors.redAccent,
+                          ),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                           onPressed: () async {
