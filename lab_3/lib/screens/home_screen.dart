@@ -4,10 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/publication.dart';
-import '../state/analytics_provider.dart';
+import '../viewmodels/analytics_provider.dart';
 import '../services/firebase_analytics_service.dart';
 import '../services/firebase_remote_config_service.dart';
-import '../services/firestore_service.dart';
 import 'publication_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -73,9 +72,6 @@ class _DashboardScreenState extends State<HomeScreen> {
       name: 'search_topic',
       parameters: {'keyword': trimmedQuery},
     );
-
-    // Ghi nhận lịch sử tìm kiếm lên Firestore
-    FirestoreService().logSearchQuery(trimmedQuery);
 
     FocusScope.of(context).unfocus();
     _searchController.text = trimmedQuery;

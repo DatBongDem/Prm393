@@ -2,7 +2,7 @@
 
 **Môn học**: PRM393 - Lập trình Thiết bị Di động  
 **Trường**: Đại học FPT (FPT University)  
-**Nhóm thực hiện**: Nhóm 04  
+**Nhóm thực hiện**: Nhóm 01  
 **Thành viên nhóm**:
 - Nguyễn Tiến Đạt - SE181844 (Trưởng nhóm)
 - Nguyễn Thành Ngọc - SE180279

@@ -1,9 +1,11 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:provider/provider.dart';
 import '../services/firebase_analytics_service.dart';
 import '../services/firebase_remote_config_service.dart';
+import '../viewmodels/auth_viewmodel.dart';
 
+// View thuần theo MVVM: mọi nghiệp vụ xác thực nằm trong AuthViewModel;
+// màn hình này chỉ thu thập input, gọi ViewModel và hiển thị kết quả.
 class LoginScreen extends StatefulWidget {
   final FirebaseAnalyticsService analyticsService;
   final FirebaseRemoteConfigService remoteConfigService;
@@ -21,169 +23,47 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
   bool _isSignUpMode = false;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
+    );
+  }
 
   Future<void> _handleGoogleSignIn() async {
-    widget.analyticsService.logButtonClick(
-      buttonId: 'google_signin_btn',
-      screenName: 'Login',
-    );
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn();
-      await googleSignIn.signOut(); // Force account chooser
-
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      await _auth.signInWithCredential(credential);
-
-      // Log successful event
-      widget.analyticsService.logCustomEvent(
-        name: 'login',
-        parameters: {'method': 'google', 'email': googleUser.email},
-      );
-    } catch (e) {
-      print('Lỗi đăng nhập Google: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Lỗi đăng nhập Google: $e\nVui lòng thử lại hoặc đăng nhập bằng Email.',
-            ),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+    final errorMessage = await context.read<AuthViewModel>().signInWithGoogle();
+    if (!mounted || errorMessage == null) return;
+    _showError(errorMessage);
   }
 
   Future<void> _handleAuth() async {
+    final authViewModel = context.read<AuthViewModel>();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng điền đầy đủ email và mật khẩu.'),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      if (_isSignUpMode) {
-        // 1. Đăng ký tài khoản mới trên Firebase Auth
-        widget.analyticsService.logButtonClick(
-          buttonId: 'register_submit_btn',
-          screenName: 'Login',
-        );
-
-        await _auth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-
-        // Ghi nhận hành vi Đăng ký thành công lên Analytics
-        widget.analyticsService.logCustomEvent(
-          name: 'user_register_success',
-          parameters: {'email': email},
-        );
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đăng ký tài khoản thành công!')),
-          );
-        }
-      } else {
-        // 2. Đăng nhập tài khoản cũ trên Firebase Auth
-        widget.analyticsService.logButtonClick(
-          buttonId: 'login_submit_btn',
-          screenName: 'Login',
-        );
-
-        await _auth.signInWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-
-        // Ghi nhận hành vi Đăng nhập thành công lên Analytics
-        widget.analyticsService.logCustomEvent(
-          name: 'user_login_success',
-          parameters: {'email': email},
-        );
-        widget.analyticsService.logCustomEvent(
-          name: 'login',
-          parameters: {'method': 'email_password', 'email': email},
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      String message = 'Đã xảy ra lỗi xác thực.';
-      if (e.code == 'user-not-found') {
-        message = 'Không tìm thấy tài khoản với email này.';
-      } else if (e.code == 'wrong-password') {
-        message = 'Mật khẩu không chính xác.';
-      } else if (e.code == 'email-already-in-use') {
-        message = 'Email này đã được sử dụng bởi một tài khoản khác.';
-      } else if (e.code == 'weak-password') {
-        message = 'Mật khẩu quá yếu (phải chứa tối thiểu 6 ký tự).';
-      } else if (e.code == 'invalid-email') {
-        message = 'Định dạng email không hợp lệ.';
-      }
-
-      if (mounted) {
+    final String? errorMessage;
+    if (_isSignUpMode) {
+      errorMessage = await authViewModel.register(email, password);
+      if (mounted && errorMessage == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
+          const SnackBar(content: Text('Đăng ký tài khoản thành công!')),
         );
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+    } else {
+      errorMessage = await authViewModel.signInWithEmail(email, password);
     }
+
+    if (!mounted || errorMessage == null) return;
+    _showError(errorMessage);
   }
 
   @override
   Widget build(BuildContext context) {
     final primaryColor = widget.remoteConfigService.getPrimaryColor();
     final welcomeMessage = widget.remoteConfigService.getWelcomeMessage();
+    // Quan sát trạng thái loading từ ViewModel (MVVM)
+    final isLoading = context.watch<AuthViewModel>().isLoading;
 
     return Scaffold(
       body: Container(
@@ -267,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _handleAuth,
+                      onPressed: isLoading ? null : _handleAuth,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
                         foregroundColor: Colors.white,
@@ -275,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      child: _isLoading
+                      child: isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
                           : Text(
                               _isSignUpMode ? 'ĐĂNG KÝ' : 'ĐĂNG NHẬP',
@@ -323,7 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     height: 56,
                     child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _handleGoogleSignIn,
+                      onPressed: isLoading ? null : _handleGoogleSignIn,
                       icon: Image.network(
                         'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1024px-Google_%22G%22_logo.svg.png',
                         height: 24,

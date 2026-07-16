@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../state/analytics_provider.dart';
+import '../viewmodels/analytics_provider.dart';
 import '../services/firebase_analytics_service.dart';
 import '../services/firebase_remote_config_service.dart';
 import '../services/firestore_service.dart';

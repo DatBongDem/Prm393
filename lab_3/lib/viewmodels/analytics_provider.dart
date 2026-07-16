@@ -2,15 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../models/author.dart';
 import '../models/publication.dart';
+import '../services/firestore_service.dart';
 import '../services/openalex_service.dart';
 
 class AnalyticsProvider extends ChangeNotifier {
   static const int maxRecentSearches = 6;
 
   final OpenAlexService _apiService;
+  FirestoreService? _firestore;
 
-  AnalyticsProvider({OpenAlexService? apiService})
-    : _apiService = apiService ?? OpenAlexService();
+  AnalyticsProvider({OpenAlexService? apiService, FirestoreService? firestore})
+    : _apiService = apiService ?? OpenAlexService(),
+      _firestore = firestore;
+
+  // Khởi tạo trễ để không chạm Firebase trước khi Firebase.initializeApp xong.
+  FirestoreService get _firestoreService => _firestore ??= FirestoreService();
 
   String _currentQuery = '';
   List<Publication> _publications = [];
@@ -83,7 +89,12 @@ class AnalyticsProvider extends ChangeNotifier {
     final trimmedQuery = query.trim();
     if (trimmedQuery.isEmpty) return;
 
-    if (addToRecent) _rememberSearch(trimmedQuery);
+    if (addToRecent) {
+      _rememberSearch(trimmedQuery);
+      // Ghi lịch sử tìm kiếm lên Firestore (fire-and-forget, không chặn UI).
+      // Chỉ ghi cho lượt tìm chủ động, không ghi khi kéo-làm-mới.
+      _firestoreService.logSearchQuery(trimmedQuery);
+    }
 
     _isLoading = true;
     _currentQuery = trimmedQuery;

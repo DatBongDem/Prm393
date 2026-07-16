@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../services/openalex_service.dart';
-import '../state/analytics_provider.dart';
+import '../viewmodels/analytics_provider.dart';
 import '../services/firebase_analytics_service.dart';
 import '../services/firebase_remote_config_service.dart';
 import 'author_detail_screen.dart';
@@ -498,6 +498,7 @@ class _JournalsScreenState extends State<JournalsScreen> with SingleTickerProvid
         final percentage = maxCount > 0 ? count / maxCount : 0.0;
 
         return Card(
+          key: ValueKey('journal_rank_$index'),
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 1,
           shape: RoundedRectangleBorder(

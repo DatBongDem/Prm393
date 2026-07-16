@@ -63,6 +63,17 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+  # Kiểm thử End-to-End (E2E) theo yêu cầu Mục 8 của đề bài.
+  # Nếu `flutter pub get` báo xung đột phiên bản, chạy: flutter pub add 'dev:patrol'
+  patrol: ^3.13.0
+
+# Cấu hình cho Patrol CLI (dùng khi chạy `patrol test`).
+patrol:
+  app_name: Lab 3
+  android:
+    package_name: com.example.lab_3
+  ios:
+    bundle_id: com.example.lab3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

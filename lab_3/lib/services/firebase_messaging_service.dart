@@ -4,8 +4,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../main.dart';
 import 'firestore_service.dart';
-import '../main.dart';
-import 'firestore_service.dart';
 
 // Đây là background handler phải đặt ở mức top-level (ngoài class)
 // và được đánh dấu bằng @pragma('vm:entry-point') để chạy khi app ở background/terminated
