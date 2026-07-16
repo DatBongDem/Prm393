@@ -43,6 +43,14 @@ class FcmSenderService {
 
   // Gửi thông báo nhắc nhở qua FCM HTTP v1 API
   static Future<void> sendJournalReminderNotification() async {
+    await sendCustomNotification(
+      'Nhắc nhở viết nhật ký 📝',
+      'Hôm nay bạn chưa viết nhật ký. Hãy dành 1 phút ghi lại suy nghĩ của mình nhé!',
+    );
+  }
+
+  // Gửi thông báo tùy chỉnh qua FCM HTTP v1 API tới topic reminder_journal
+  static Future<void> sendCustomNotification(String title, String body) async {
     final token = await _getAccessToken();
     if (token == null) {
       print('FCM Sender (v1): Không thể gửi thông báo vì không có Access Token.');
@@ -57,12 +65,12 @@ class FcmSenderService {
       'Authorization': 'Bearer $token',
     };
 
-    final body = jsonEncode({
+    final jsonBody = jsonEncode({
       'message': {
         'topic': 'reminder_journal',
         'notification': {
-          'title': 'Nhắc nhở viết nhật ký 📝',
-          'body': 'Hôm nay bạn chưa viết nhật ký. Hãy dành 1 phút ghi lại suy nghĩ của mình nhé!',
+          'title': title,
+          'body': body,
         },
         'android': {
           'notification': {
@@ -74,9 +82,9 @@ class FcmSenderService {
     });
 
     try {
-      final response = await http.post(url, headers: headers, body: body);
+      final response = await http.post(url, headers: headers, body: jsonBody);
       if (response.statusCode == 200) {
-        print('FCM Sender (v1): Đã gửi yêu cầu thông báo thành công!');
+        print('FCM Sender (v1): Đã gửi yêu cầu thông báo "$title" thành công!');
       } else {
         print('FCM Sender (v1): Gửi thất bại với mã lỗi ${response.statusCode}: ${response.body}');
       }

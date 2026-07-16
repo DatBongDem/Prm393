@@ -47,6 +47,10 @@ class MyApp extends StatefulWidget {
   final FirebaseAnalyticsService analyticsService;
   final FirebaseRemoteConfigService remoteConfigService;
 
+  // Khóa ScaffoldMessenger tĩnh toàn cục để hiển thị SnackBar từ background service
+  static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
   const MyApp({
     Key? key,
     required this.analyticsService,
@@ -72,6 +76,7 @@ class _MyAppState extends State<MyApp> {
     final primaryColor = widget.remoteConfigService.getPrimaryColor();
 
     return MaterialApp(
+      scaffoldMessengerKey: MyApp.scaffoldMessengerKey,
       title: 'Lab 3 Firebase App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

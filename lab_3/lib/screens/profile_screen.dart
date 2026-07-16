@@ -7,6 +7,7 @@ import '../main.dart';
 import '../services/firebase_analytics_service.dart';
 import '../services/firebase_remote_config_service.dart';
 import '../services/firestore_service.dart';
+import '../services/fcm_sender_service.dart';
 
 
 class ProfileScreen extends StatefulWidget {
@@ -303,7 +304,240 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+
+                // ==========================================
+                // PHẦN GIẢ LẬP GỬI THÔNG BÁO FCM (DEMO)
+                // ==========================================
+                const SizedBox(height: 32),
+                const Text(
+                  'Giả Lập Gửi Thông Báo FCM (Demo)',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Bấm vào các nút dưới đây để hệ thống tự động đẩy thông báo từ máy chủ FCM về thiết bị này.',
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      ActionChip(
+                        avatar: const Icon(Icons.edit_note, size: 16),
+                        label: const Text('Nhắc nhở viết'),
+                        onPressed: () {
+                          FcmSenderService.sendJournalReminderNotification();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Đang gửi thông báo nhắc nhở viết nhật ký...'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      ActionChip(
+                        avatar: const Icon(Icons.trending_up, size: 16),
+                        label: const Text('Xu hướng mới'),
+                        onPressed: () {
+                          FcmSenderService.sendCustomNotification(
+                            'Xu hướng nghiên cứu mới 📈',
+                            'Chủ đề AI và học sâu (Deep Learning) đang tăng trưởng 150% tuần này!',
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Đang gửi thông báo xu hướng mới...'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      ActionChip(
+                        avatar: const Icon(Icons.star, size: 16),
+                        label: const Text('Bài báo hot'),
+                        onPressed: () {
+                          FcmSenderService.sendCustomNotification(
+                            'Bài viết nổi bật tuần này ⭐',
+                            'Nghiên cứu về thế hệ AI tiếp theo đã đạt hơn 1000 lượt tải!',
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Đang gửi thông báo bài báo hot...'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ==========================================
+                // PHẦN NOTIFICATION CENTER
+                // ==========================================
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Notification Center 🔔',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    StreamBuilder<List<QueryDocumentSnapshot>>(
+                      stream: FirestoreService().getNotificationsStream(),
+                      builder: (context, snapshot) {
+                        final count = snapshot.data?.length ?? 0;
+                        if (count == 0) return const SizedBox.shrink();
+                        return TextButton(
+                          onPressed: () async {
+                            await FirestoreService().clearAllNotifications();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Đã xóa tất cả thông báo.'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: const Text('Xóa tất cả'),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                StreamBuilder<List<QueryDocumentSnapshot>>(
+                  stream: FirestoreService().getNotificationsStream(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          'Lỗi: ${snapshot.error}',
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      );
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
+                    final docs = snapshot.data ?? [];
+                    if (docs.isEmpty) {
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.notifications_off_outlined,
+                                size: 48, color: Colors.grey.shade400),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Không có thông báo nào.',
+                              style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: docs.length > 5 ? 5 : docs.length, // Hiển thị tối đa 5 thông báo gần nhất
+                      itemBuilder: (context, index) {
+                        final doc = docs[index];
+                        final data = doc.data() as Map<String, dynamic>;
+                        final title = data['title'] ?? 'Thông báo';
+                        final body = data['body'] ?? '';
+                        final timestamp = data['receivedAt'] as Timestamp?;
+
+                        String timeStr = 'Đang nhận...';
+                        if (timestamp != null) {
+                          final date = timestamp.toDate();
+                          timeStr =
+                              '${date.hour}:${date.minute.toString().padLeft(2, '0')} - ${date.day}/${date.month}/${date.year}';
+                        }
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          elevation: 0,
+                          color: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: primaryColor.withOpacity(0.1),
+                              child: Icon(Icons.notifications, color: primaryColor, size: 20),
+                            ),
+                            title: Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (body.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    body,
+                                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                  ),
+                                ],
+                                const SizedBox(height: 6),
+                                Text(
+                                  timeStr,
+                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                                ),
+                              ],
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                              onPressed: () async {
+                                await FirestoreService().deleteNotification(doc.id);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Đã xóa thông báo.'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 32),
                 // Logout Button
                 SizedBox(
                   width: double.infinity,
