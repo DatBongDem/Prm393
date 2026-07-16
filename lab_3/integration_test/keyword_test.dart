@@ -15,14 +15,17 @@ void main() {
       await ensureLoggedIn($);
       // Tìm trước để có dữ liệu từ khóa (dù màn hình còn có phương án dự phòng OpenAlex).
       await searchTopic($, kTestTopic);
-      await $('Top author').waitUntilVisible(timeout: const Duration(seconds: 40));
 
       await openTab($, 'Keywords');
 
       // Màn hình 'Xu hướng tìm kiếm' và danh sách từ khóa phổ biến.
-      await $('Xu hướng tìm kiếm').waitUntilVisible(timeout: const Duration(seconds: 20));
-      await $('Danh sách từ khóa phổ biến')
-          .waitUntilVisible(timeout: const Duration(seconds: 20));
+      await $(
+        'Xu hướng tìm kiếm',
+      ).waitUntilVisible(timeout: const Duration(seconds: 20));
+      await $(
+        'Danh sách từ khóa phổ biến',
+      ).waitUntilVisible(timeout: const Duration(seconds: 20));
+      await pauseForDataPreview($);
       expect($('Danh sách từ khóa phổ biến').exists, true);
     },
   );
@@ -35,17 +38,21 @@ void main() {
       await launchApp($);
       await ensureLoggedIn($);
       await searchTopic($, kTestTopic);
-      await $('Top author').waitUntilVisible(timeout: const Duration(seconds: 40));
 
       await openTab($, 'Keywords');
-      await $('Danh sách từ khóa phổ biến')
-          .waitUntilVisible(timeout: const Duration(seconds: 20));
+      await $(
+        'Danh sách từ khóa phổ biến',
+      ).waitUntilVisible(timeout: const Duration(seconds: 20));
+      await pauseForDataPreview($);
 
       // Chạm vào từ khóa đầu tiên trong danh sách (ListTile).
       await $(ListTile).first.tap();
 
       // Màn hình Chi tiết từ khóa có 'Bộ lọc thời gian' và tab 'Bài báo liên quan'.
-      await $('Bộ lọc thời gian').waitUntilVisible(timeout: const Duration(seconds: 30));
+      await $(
+        'Bộ lọc thời gian',
+      ).waitUntilVisible(timeout: const Duration(seconds: 30));
+      await pauseForDataPreview($);
       expect($('Bộ lọc thời gian').exists, true);
       expect($('Bài báo liên quan').exists, true);
     },

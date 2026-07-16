@@ -17,6 +17,7 @@ void main() {
 
       // Màn hình 'Cá nhân' hiển thị email tài khoản đang đăng nhập và các panel Firebase.
       await $('Cá nhân').waitUntilVisible(timeout: const Duration(seconds: 20));
+      await pauseForDataPreview($);
       expect($('Cá nhân').exists, true);
       // Email tài khoản test phải xuất hiện trong phần thông tin người dùng.
       expect($(kTestEmail).exists, true);

@@ -3,17 +3,22 @@
 // TRƯỚC KHI CHẠY TEST: điền tài khoản thật đã tạo trên Firebase Authentication.
 // Các test (trừ đăng nhập Google) dùng tài khoản Email/Mật khẩu này để vào được
 // màn hình chính, vì đăng nhập Google cần thao tác native khó tự động hóa ổn định.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lab_3/main.dart' as app;
 import 'package:patrol/patrol.dart';
 
 /// Tài khoản test — HÃY THAY bằng tài khoản Email/Password thật của bạn
 /// đã bật trong Firebase Console → Authentication.
-const String kTestEmail = 'test@fpt.edu.vn';
-const String kTestPassword = '123456';
+const String kTestEmail = 'demo@gmail.com';
+const String kTestPassword = '12345678';
 
 /// Từ khóa dùng cho các kịch bản tìm kiếm.
 const String kTestTopic = 'machine learning';
+
+/// Dừng nhẹ sau khi dữ liệu chính đã hiện để người chạy test nhìn kịp UI.
+const Duration kDataPreviewDelay = Duration(seconds: 2);
 
 /// Cấu hình mặc định cho patrolTest (timeout rộng vì có gọi mạng Firebase + OpenAlex).
 final PatrolTesterConfig kPatrolConfig = PatrolTesterConfig(
@@ -31,8 +36,12 @@ Future<void> launchApp(PatrolIntegrationTester $) async {
 /// bằng Email/Mật khẩu. Dùng ở đầu mọi test cần trạng thái đã đăng nhập.
 Future<void> ensureLoggedIn(PatrolIntegrationTester $) async {
   // Chờ tối đa 40s cho tới khi thấy Home ('Trang chủ') hoặc màn Đăng nhập ('ĐĂNG NHẬP').
-  await _waitForEither($, 'Trang chủ', 'ĐĂNG NHẬP',
-      timeout: const Duration(seconds: 40));
+  await _waitForEither(
+    $,
+    'Trang chủ',
+    'ĐĂNG NHẬP',
+    timeout: const Duration(seconds: 40),
+  );
 
   if ($('Trang chủ').exists) return; // Đã đăng nhập sẵn (session còn lưu).
 
@@ -51,12 +60,35 @@ Future<void> openTab(PatrolIntegrationTester $, String label) async {
   await $.pumpAndSettle();
 }
 
+Future<void> pauseForDataPreview(
+  PatrolIntegrationTester $, {
+  Duration duration = kDataPreviewDelay,
+}) async {
+  await $.pump(duration);
+}
+
 /// Thực hiện tìm kiếm một chủ đề tại màn hình Home.
 Future<void> searchTopic(PatrolIntegrationTester $, String topic) async {
+  await waitForDashboardResults($);
+
   final searchField = $(#dashboard_topic_search);
+  await searchField.scrollTo();
+  await searchField.waitUntilVisible(timeout: const Duration(seconds: 15));
   await searchField.enterText(topic);
   await $.tester.testTextInput.receiveAction(TextInputAction.search);
-  await $.pumpAndSettle();
+
+  await waitForDashboardResults($);
+}
+
+/// Chờ dữ liệu phân tích hiện ra và scroll tới vùng kết quả nếu nó nằm dưới màn.
+Future<void> waitForDashboardResults(
+  PatrolIntegrationTester $, {
+  Duration timeout = const Duration(seconds: 60),
+}) async {
+  await _waitForTextExists($, 'Top author', timeout: timeout);
+  await $('Top author').scrollTo();
+  await $('Top author').waitUntilVisible(timeout: const Duration(seconds: 15));
+  await pauseForDataPreview($);
 }
 
 /// Chờ cho tới khi một trong hai chuỗi văn bản xuất hiện trên màn hình.
@@ -71,4 +103,18 @@ Future<void> _waitForEither(
     await $.pump(const Duration(milliseconds: 500));
     if ($(textA).exists || $(textB).exists) return;
   }
+}
+
+Future<void> _waitForTextExists(
+  PatrolIntegrationTester $,
+  String text, {
+  required Duration timeout,
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    await $.pump(const Duration(milliseconds: 500));
+    if ($(text).exists) return;
+  }
+
+  throw TimeoutException('Không thấy nội dung "$text"', timeout);
 }

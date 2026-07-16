@@ -18,6 +18,7 @@ void main() {
 
       // Panel Remote Config hiển thị (ít nhất) hai khóa cấu hình theo yêu cầu đề.
       await $('Firebase Remote Config').scrollTo();
+      await pauseForDataPreview($);
       expect($('max_journals').exists, true);
       expect($('max_keywords').exists, true);
       expect($('welcome_message').exists, true);

@@ -14,18 +14,21 @@ void main() {
       await ensureLoggedIn($);
       // Tìm trước một chủ đề để bảng xếp hạng có dữ liệu.
       await searchTopic($, kTestTopic);
-      await $('Top author').waitUntilVisible(timeout: const Duration(seconds: 40));
 
       await openTab($, 'Journals');
 
       // Màn hình 'Phân tích' với 3 tab con.
-      await $('Phân tích').waitUntilVisible(timeout: const Duration(seconds: 20));
+      await $(
+        'Phân tích',
+      ).waitUntilVisible(timeout: const Duration(seconds: 20));
+      await pauseForDataPreview($);
       expect($('Top Tạp chí').exists, true);
       expect($('Top Tác giả').exists, true);
 
       // Mở tab con 'Top Tạp chí' để thấy danh sách xếp hạng tạp chí.
       await $('Top Tạp chí').tap();
       await $.pumpAndSettle();
+      await pauseForDataPreview($);
     },
   );
 
@@ -37,18 +40,23 @@ void main() {
       await launchApp($);
       await ensureLoggedIn($);
       await searchTopic($, kTestTopic);
-      await $('Top author').waitUntilVisible(timeout: const Duration(seconds: 40));
 
       await openTab($, 'Journals');
-      await $('Top Tạp chí').waitUntilVisible(timeout: const Duration(seconds: 20));
+      await $(
+        'Top Tạp chí',
+      ).waitUntilVisible(timeout: const Duration(seconds: 20));
       await $('Top Tạp chí').tap();
       await $.pumpAndSettle();
+      await pauseForDataPreview($);
 
       // Chạm vào tạp chí đầu tiên trong danh sách (widget ListTile có icon menu_book).
       await $(#journal_rank_0).tap();
 
       // Màn hình Chi tiết tạp chí: tiêu đề bắt đầu bằng 'Tạp chí:' và có 'Tổng trích dẫn'.
-      await $('Tổng trích dẫn').waitUntilVisible(timeout: const Duration(seconds: 20));
+      await $(
+        'Tổng trích dẫn',
+      ).waitUntilVisible(timeout: const Duration(seconds: 20));
+      await pauseForDataPreview($);
       expect($('Tổng trích dẫn').exists, true);
     },
   );

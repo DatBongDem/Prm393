@@ -17,7 +17,6 @@ void main() {
 
       // Sau khi tìm, dashboard hiển thị các thẻ chỉ số phân tích của mẫu bài báo.
       // 'Top author' và 'Top journal' chỉ xuất hiện khi đã có kết quả.
-      await $('Top author').waitUntilVisible(timeout: const Duration(seconds: 40));
       expect($('Top author').exists, true);
       expect($('Top journal').exists, true);
     },
@@ -31,14 +30,16 @@ void main() {
       await launchApp($);
       await ensureLoggedIn($);
       await searchTopic($, kTestTopic);
-      await $('Top author').waitUntilVisible(timeout: const Duration(seconds: 40));
 
       // Mở bài báo có sức ảnh hưởng nhất — thẻ này mang nhãn 'Top Citations'
       // và có sự kiện onTap điều hướng sang màn hình chi tiết.
       await $('Top Citations').scrollTo().tap();
 
       // Màn hình Chi tiết bài báo phải hiển thị tiêu đề màn và mục Abstract.
-      await $('Chi tiết bài báo').waitUntilVisible(timeout: const Duration(seconds: 20));
+      await $(
+        'Chi tiết bài báo',
+      ).waitUntilVisible(timeout: const Duration(seconds: 20));
+      await pauseForDataPreview($);
       expect($('Chi tiết bài báo').exists, true);
       expect($('Tóm tắt bài báo (Abstract)').exists, true);
     },

@@ -16,7 +16,6 @@ void main() {
       await ensureLoggedIn($);
       // Tìm một chủ đề để chắc chắn có dữ liệu bài báo cho báo cáo.
       await searchTopic($, kTestTopic);
-      await $('Top author').waitUntilVisible(timeout: const Duration(seconds: 40));
 
       await openTab($, 'Profile');
       await $('Cá nhân').waitUntilVisible(timeout: const Duration(seconds: 20));
@@ -26,9 +25,11 @@ void main() {
 
       // Khi tải lên thành công, giao diện hiển thị liên kết tải báo cáo.
       // Timeout rộng vì phải sinh PDF + upload lên Storage qua mạng.
-      await $('Link tải báo cáo PDF:')
-          .waitUntilVisible(timeout: const Duration(seconds: 60));
-      expect($('Link tải báo cáo PDF:').exists, true);
+      await $(
+        'Báo cáo vừa xuất:',
+      ).waitUntilVisible(timeout: const Duration(seconds: 90));
+      await pauseForDataPreview($);
+      expect($('Báo cáo vừa xuất:').exists, true);
     },
   );
 }
