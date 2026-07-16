@@ -7,7 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../models/publication.dart';
 
 class PdfReportService {
-  static Future<String?> generateAndUploadReport({
+  static Future<String> generateAndUploadReport({
     required String topic,
     required List<Publication> publications,
   }) async {
@@ -81,31 +81,32 @@ class PdfReportService {
       ),
     );
 
-    try {
-      // Lưu file dưới bộ nhớ tạm local
-      final tempDir = await getTemporaryDirectory();
-      final String fileName = 'report_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final File file = File('${tempDir.path}/$fileName');
-      await file.writeAsBytes(await pdf.save());
+    // Lưu file dưới bộ nhớ tạm local
+    final tempDir = await getTemporaryDirectory();
+    final String fileName = 'report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    final File file = File('${tempDir.path}/$fileName');
+    await file.writeAsBytes(await pdf.save());
 
-      // Lấy id người dùng
-      final user = FirebaseAuth.instance.currentUser;
-      final userId = user?.uid ?? 'anonymous';
+    // Lấy id người dùng
+    final user = FirebaseAuth.instance.currentUser;
+    final userId = user?.uid ?? 'anonymous';
 
-      // Tải lên Firebase Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('reports')
-          .child(userId)
-          .child(fileName);
+    // Tải lên Firebase Storage
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('reports')
+        .child(userId)
+        .child(fileName);
 
-      final uploadTask = await storageRef.putFile(file);
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
-      
-      return downloadUrl;
-    } catch (e) {
-      print('Lỗi xuất và upload PDF: $e');
-      return null;
-    }
+    // Timeout để tránh treo UI vô thời hạn nếu Storage chưa được khởi tạo
+    // hoặc thiết bị mất kết nối mạng.
+    final uploadTask = await storageRef
+        .putFile(file)
+        .timeout(const Duration(seconds: 30));
+    final downloadUrl = await uploadTask.ref
+        .getDownloadURL()
+        .timeout(const Duration(seconds: 15));
+
+    return downloadUrl;
   }
 }

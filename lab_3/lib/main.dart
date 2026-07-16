@@ -57,19 +57,9 @@ class MyApp extends StatefulWidget {
 
   @override
   State<MyApp> createState() => _MyAppState();
-
-  // Ham helper tinh de giup cac Widget con yeu cau app rebuild lai khi Remote Config thay doi.
-  static void refresh(BuildContext context) {
-    context.findAncestorStateOfType<_MyAppState>()?.refreshApp();
-  }
 }
 
 class _MyAppState extends State<MyApp> {
-  // Hàm trigger rebuild lại toàn bộ cây Widget (bao gồm cả theme)
-  void refreshApp() {
-    setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
     final primaryColor = widget.remoteConfigService.getPrimaryColor();

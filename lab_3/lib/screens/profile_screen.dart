@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../main.dart';
 import '../services/firebase_analytics_service.dart';
 import '../services/firebase_remote_config_service.dart';
 import '../services/firebase_messaging_service.dart';
@@ -28,7 +27,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isFetching = false;
   bool _isExporting = false;
   String? _pdfUrl;
   late StreamSubscription<List<Map<String, String>>> _notificationSubscription;
@@ -56,39 +54,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchNewConfig() async {
-    setState(() {
-      _isFetching = true;
-    });
-
-    widget.analyticsService.logButtonClick(
-      buttonId: 'fetch_remote_config_btn',
-      screenName: 'Profile',
-    );
-
-    // Thực hiện fetch dữ liệu Remote Config từ Firebase
-    bool updated = await widget.remoteConfigService.fetchAndActivate();
-
-    if (!mounted) return;
-
-    // Rebuild lại toàn bộ cây widget để cập nhật màu sắc/theme mới nếu có thay đổi
-    MyApp.refresh(context);
-
-    setState(() {
-      _isFetching = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          updated
-              ? 'Đã tải thành công cấu hình mới từ Firebase!'
-              : 'Cấu hình đã ở phiên bản mới nhất.',
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
 
   Future<void> _exportPdfReport(AnalyticsProvider provider) async {
     final topic = provider.hasSearchQuery
@@ -117,10 +82,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       parameters: {'topic': topic},
     );
 
-    final url = await PdfReportService.generateAndUploadReport(
-      topic: topic,
-      publications: publications,
-    );
+    String? url;
+    String? errorMessage;
+    try {
+      url = await PdfReportService.generateAndUploadReport(
+        topic: topic,
+        publications: publications,
+      );
+    } catch (e) {
+      errorMessage = e.toString();
+      print('Lỗi xuất và upload PDF: $e');
+    }
 
     if (!mounted) return;
 
@@ -138,8 +110,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Xuất báo cáo thất bại.'),
+        SnackBar(
+          content: Text('Xuất báo cáo thất bại: ${errorMessage ?? "Lỗi không xác định"}'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -196,9 +168,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = widget.remoteConfigService.getPrimaryColor();
-    final welcomeMessage = widget.remoteConfigService.getWelcomeMessage();
-    final maxJournals = widget.remoteConfigService.getMaxJournals();
-    final maxKeywords = widget.remoteConfigService.getMaxKeywords();
     final provider = context.watch<AnalyticsProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = FirebaseAuth.instance.currentUser;
@@ -297,56 +266,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildConfigTile(
-                  icon: Icons.message_outlined,
-                  label: 'welcome_message',
-                  value: welcomeMessage,
-                  primaryColor: primaryColor,
-                  isDark: isDark,
-                ),
-                _buildConfigTile(
-                  icon: Icons.menu_book_outlined,
-                  label: 'max_journals',
-                  value: '$maxJournals tạp chí',
-                  primaryColor: primaryColor,
-                  isDark: isDark,
-                ),
-                _buildConfigTile(
-                  icon: Icons.tag_outlined,
-                  label: 'max_keywords',
-                  value: '$maxKeywords từ khóa',
-                  primaryColor: primaryColor,
-                  isDark: isDark,
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: _isFetching ? null : _fetchNewConfig,
-                    icon: _isFetching
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
+                ListenableBuilder(
+                  listenable: widget.remoteConfigService,
+                  builder: (context, _) {
+                    final welcomeMessage =
+                        widget.remoteConfigService.getWelcomeMessage();
+                    final maxJournals =
+                        widget.remoteConfigService.getMaxJournals();
+                    final maxKeywords =
+                        widget.remoteConfigService.getMaxKeywords();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildConfigTile(
+                          icon: Icons.message_outlined,
+                          label: 'welcome_message',
+                          value: welcomeMessage,
+                          primaryColor: primaryColor,
+                          isDark: isDark,
+                        ),
+                        _buildConfigTile(
+                          icon: Icons.menu_book_outlined,
+                          label: 'max_journals',
+                          value: '$maxJournals tạp chí',
+                          primaryColor: primaryColor,
+                          isDark: isDark,
+                        ),
+                        _buildConfigTile(
+                          icon: Icons.tag_outlined,
+                          label: 'max_keywords',
+                          value: '$maxKeywords từ khóa',
+                          primaryColor: primaryColor,
+                          isDark: isDark,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.sync, size: 14, color: Colors.grey.shade500),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Tự động đồng bộ theo thời gian thực',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                                fontStyle: FontStyle.italic,
+                              ),
                             ),
-                          )
-                        : const Icon(Icons.sync),
-                    label: const Text(
-                      'Cập nhật cấu hình Remote Config',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 24),
 

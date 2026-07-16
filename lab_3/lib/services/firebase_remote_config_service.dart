@@ -1,7 +1,7 @@
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/material.dart';
 
-class FirebaseRemoteConfigService {
+class FirebaseRemoteConfigService extends ChangeNotifier {
   final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
   Future<void> initialize() async {
@@ -28,6 +28,20 @@ class FirebaseRemoteConfigService {
 
       // 3. Thực hiện tải và kích hoạt cấu hình từ xa
       await fetchAndActivate();
+
+      // 4. Lắng nghe cập nhật realtime từ server (không cần polling/nút bấm thủ công).
+      // Khi admin publish config mới trên Console, sự kiện này bắn ra gần như ngay lập tức.
+      print('Remote Config: Đã đăng ký lắng nghe realtime updates.');
+      _remoteConfig.onConfigUpdated.listen((event) async {
+        print('Remote Config: Nhận được update realtime cho các key: ${event.updatedKeys}');
+        try {
+          await _remoteConfig.activate();
+          notifyListeners();
+          print('Remote Config: Đã activate giá trị mới và notifyListeners().');
+        } catch (e) {
+          print('Lỗi activate Remote Config realtime update: $e');
+        }
+      });
     } catch (e) {
       print('Lỗi khởi tạo Remote Config: $e');
     }
