@@ -7,7 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../models/publication.dart';
 
 class PdfReportService {
-  static Future<String> generateAndUploadReport({
+  static Future<Map<String, String>> generateAndUploadReport({
     required String topic,
     required List<Publication> publications,
   }) async {
@@ -107,6 +107,9 @@ class PdfReportService {
         .getDownloadURL()
         .timeout(const Duration(seconds: 15));
 
-    return downloadUrl;
+    return {
+      'url': downloadUrl,
+      'fileName': fileName,
+    };
   }
 }
