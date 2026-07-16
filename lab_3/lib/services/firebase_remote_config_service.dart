@@ -20,8 +20,6 @@ class FirebaseRemoteConfigService extends ChangeNotifier {
       await _remoteConfig.setDefaults(<String, dynamic>{
         'welcome_message': 'Chào mừng bạn đến với ứng dụng Lab 3!',
         'primary_color': '#6200EE', // Màu tím Material mặc định
-        'required_points': 100, // Ngưỡng điểm mặc định để nhận khuyến mãi
-        'bonus_points': 20, // Điểm thưởng mặc định ban đầu
         'max_journals': 5,
         'max_keywords': 5,
       });
@@ -67,13 +65,7 @@ class FirebaseRemoteConfigService extends ChangeNotifier {
     return _remoteConfig.getString('welcome_message');
   }
 
-  int getRequiredPoints() {
-    return _remoteConfig.getInt('required_points');
-  }
 
-  int getBonusPoints() {
-    return _remoteConfig.getInt('bonus_points');
-  }
 
   int getMaxJournals() {
     return _remoteConfig.getInt('max_journals');

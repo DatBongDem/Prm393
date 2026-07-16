@@ -117,13 +117,6 @@ class _DashboardScreenState extends State<HomeScreen> {
         backgroundColor: const Color(0xFF1E293B),
         foregroundColor: Colors.white,
         elevation: 0,
-        actions: [
-          IconButton(
-            tooltip: 'Danh sách bài báo',
-            onPressed: _openSearchScreen,
-            icon: const Icon(Icons.article_outlined),
-          ),
-        ],
       ),
       body: RefreshIndicator(
         color: Colors.blueAccent,

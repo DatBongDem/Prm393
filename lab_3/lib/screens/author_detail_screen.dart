@@ -178,6 +178,12 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
             );
           }
 
+          final screenWidth = MediaQuery.sizeOf(context).width;
+          final int crossAxisCount = screenWidth >= 900 ? 4 : 2;
+          final double childAspectRatio = screenWidth >= 900
+              ? 1.4
+              : (screenWidth >= 600 ? 1.8 : 1.12);
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -229,12 +235,12 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen> {
                 ),
                 const SizedBox(height: 24),
                 GridView.count(
-                  crossAxisCount: 2,
+                  crossAxisCount: crossAxisCount,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 1.12,
+                  childAspectRatio: childAspectRatio,
                   children: [
                     _buildMetricCard(
                       context,

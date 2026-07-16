@@ -12,7 +12,7 @@ import '../services/firebase_remote_config_service.dart';
 import 'author_detail_screen.dart';
 import 'journal_detail_screen.dart';
 
-class JournalsScreen extends StatelessWidget {
+class JournalsScreen extends StatefulWidget {
   final FirebaseAnalyticsService analyticsService;
   final FirebaseRemoteConfigService remoteConfigService;
   final OpenAlexService? authorService;
@@ -25,49 +25,73 @@ class JournalsScreen extends StatelessWidget {
   });
 
   @override
+  State<JournalsScreen> createState() => _JournalsScreenState();
+}
+
+class _JournalsScreenState extends State<JournalsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final provider = context.watch<AnalyticsProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: isDark
-            ? const Color(0xFF0F172A)
-            : const Color(0xFFF8FAFC),
-        appBar: AppBar(
-          title: Text(
-            'Phân tích',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.w800),
-          ),
-          backgroundColor: const Color(0xFF1E293B),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          bottom: TabBar(
-            isScrollable: true,
-            indicatorColor: Colors.blueAccent,
-            indicatorWeight: 3,
-            labelStyle: GoogleFonts.outfit(
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-            unselectedLabelStyle: GoogleFonts.outfit(
-              fontWeight: FontWeight.w500,
-              fontSize: 12,
-            ),
-            tabs: const [
-              Tab(text: 'Xu hướng năm', icon: Icon(Icons.show_chart)),
-              Tab(text: 'Top Tạp chí', icon: Icon(Icons.menu_book)),
-              Tab(text: 'Top Tác giả', icon: Icon(Icons.people)),
-            ],
-          ),
+    return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: Text(
+          'Phân tích',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.w800),
         ),
-        body: _buildAnalysisBody(context, provider),
+        backgroundColor: const Color(0xFF1E293B),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: MediaQuery.sizeOf(context).width < 600 ? false : true,
+          tabAlignment: MediaQuery.sizeOf(context).width < 600
+              ? TabAlignment.fill
+              : TabAlignment.center,
+          indicatorColor: Colors.blueAccent,
+          indicatorWeight: 3,
+          labelStyle: GoogleFonts.outfit(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+          unselectedLabelStyle: GoogleFonts.outfit(
+            fontWeight: FontWeight.w500,
+            fontSize: 12,
+          ),
+          tabs: const [
+            Tab(text: 'Xu hướng năm', icon: Icon(Icons.show_chart)),
+            Tab(text: 'Top Tạp chí', icon: Icon(Icons.menu_book)),
+            Tab(text: 'Top Tác giả', icon: Icon(Icons.people)),
+          ],
+        ),
       ),
+      body: _buildAnalysisBody(context, provider),
     );
   }
 
   Widget _buildAnalysisBody(BuildContext context, AnalyticsProvider provider) {
+    final maxJournals = widget.remoteConfigService.getMaxJournals();
     if (provider.isAnalysisLoading && provider.analysisPublications.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -119,9 +143,11 @@ class JournalsScreen extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                provider.hasSearchQuery
-                    ? Icons.manage_search
-                    : Icons.public_rounded,
+                _tabController.index == 0
+                    ? Icons.show_chart_rounded
+                    : (_tabController.index == 1
+                        ? Icons.menu_book_rounded
+                        : Icons.people_alt_rounded),
                 color: Colors.white,
                 size: 28,
               ),
@@ -131,9 +157,11 @@ class JournalsScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      provider.hasSearchQuery
-                          ? 'Xếp hạng theo từ khóa'
-                          : 'Xếp hạng chung',
+                      _tabController.index == 0
+                          ? (provider.hasSearchQuery ? 'Xu hướng từ khóa' : 'Xu hướng nghiên cứu')
+                          : (_tabController.index == 1
+                              ? (provider.hasSearchQuery ? 'Tạp chí theo từ khóa' : 'Xếp hạng Tạp chí')
+                              : (provider.hasSearchQuery ? 'Tác giả theo từ khóa' : 'Xếp hạng Tác giả')),
                       style: GoogleFonts.outfit(
                         color: Colors.white,
                         fontSize: 17,
@@ -141,9 +169,17 @@ class JournalsScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      provider.hasSearchQuery
-                          ? '“${provider.currentQuery}” • ${provider.analysisPublications.length} bài mẫu'
-                          : 'Xu hướng nổi bật trong 10 năm gần đây • ${provider.analysisPublications.length} bài mẫu',
+                      _tabController.index == 0
+                          ? (provider.hasSearchQuery
+                              ? 'Biểu đồ xu hướng cho “${provider.currentQuery}” • ${provider.analysisPublications.length} bài mẫu'
+                              : 'Xu hướng nổi bật trong 10 năm gần đây • ${provider.analysisPublications.length} bài mẫu')
+                          : (_tabController.index == 1
+                              ? (provider.hasSearchQuery
+                                  ? 'Top $maxJournals tạp chí hoạt động nhiều nhất về “${provider.currentQuery}” • ${provider.analysisPublications.length} bài mẫu'
+                                  : 'Top $maxJournals tạp chí công bố nhiều nghiên cứu nổi bật nhất • ${provider.analysisPublications.length} bài mẫu')
+                              : (provider.hasSearchQuery
+                                  ? 'Top 20 tác giả đóng góp nhiều nhất về “${provider.currentQuery}” • ${provider.analysisPublications.length} bài mẫu'
+                                  : 'Top 20 tác giả có nhiều công bố nổi bật nhất • ${provider.analysisPublications.length} bài mẫu')),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
@@ -160,6 +196,7 @@ class JournalsScreen extends StatelessWidget {
         ),
         Expanded(
           child: TabBarView(
+            controller: _tabController,
             children: [
               _buildYearTrendTab(context, provider),
               _buildTopJournalsTab(context, provider),
@@ -215,8 +252,12 @@ class JournalsScreen extends StatelessWidget {
       return FlSpot(year.toDouble(), yearData[year]!.toDouble());
     }).toList();
 
-    final minX = sortedYears.first.toDouble();
-    final maxX = sortedYears.last.toDouble();
+    double minX = sortedYears.first.toDouble();
+    double maxX = sortedYears.last.toDouble();
+    if (minX == maxX) {
+      minX = minX - 1;
+      maxX = maxX + 1;
+    }
     const minY = 0.0;
     final maxY = (yearData.values.reduce(max).toDouble() * 1.2).ceilToDouble();
     final xInterval = max(1.0, ((maxX - minX) / 5).roundToDouble());
@@ -434,7 +475,7 @@ class JournalsScreen extends StatelessWidget {
   ) {
     final journals = provider.topJournals;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final maxJournalsLimit = remoteConfigService.getMaxJournals();
+    final maxJournalsLimit = widget.remoteConfigService.getMaxJournals();
 
     if (journals.isEmpty) {
       return Center(
@@ -469,7 +510,7 @@ class JournalsScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             onTap: () {
               // Log event: view_journal
-              analyticsService.logCustomEvent(
+              widget.analyticsService.logCustomEvent(
                 name: 'view_journal',
                 parameters: {'journal_name': name},
               );
@@ -481,7 +522,7 @@ class JournalsScreen extends StatelessWidget {
                   builder: (context) => JournalDetailScreen(
                     journalName: name,
                     publications: provider.analysisPublications,
-                    analyticsService: analyticsService,
+                    analyticsService: widget.analyticsService,
                   ),
                 ),
               );
@@ -619,7 +660,7 @@ class JournalsScreen extends StatelessWidget {
                     builder: (context) => AuthorDetailScreen(
                       authorId: author.authorId,
                       authorName: author.displayName,
-                      service: authorService,
+                      service: widget.authorService,
                     ),
                   ),
                 );
