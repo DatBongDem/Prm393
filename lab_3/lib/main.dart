@@ -10,31 +10,45 @@ import 'screens/main_navigation_screen.dart';
 import 'services/firebase_analytics_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/firebase_remote_config_service.dart';
-import 'state/analytics_provider.dart';
+import 'viewmodels/analytics_provider.dart';
+import 'viewmodels/auth_viewmodel.dart';
+import 'viewmodels/profile_viewmodel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final isRunningInTest = _isRunningInTestEnvironment();
 
   // 1. Khởi tạo Firebase với cấu hình tự động được sinh ra
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // 2. Cấu hình Firebase Crashlytics để bắt toàn bộ các lỗi Flutter/Dart
-  FlutterError.onError = (errorDetails) {
-    FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
-  };
-  // Bắt các lỗi xảy ra bất đồng bộ bên ngoài luồng giao diện (Async/Background Errors)
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+  if (isRunningInTest) {
+    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(false);
+  } else {
+    final originalFlutterOnError = FlutterError.onError;
+    final originalPlatformOnError = PlatformDispatcher.instance.onError;
+
+    FlutterError.onError = (errorDetails) {
+      originalFlutterOnError?.call(errorDetails);
+      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+    };
+    // Bắt các lỗi xảy ra bất đồng bộ bên ngoài luồng giao diện (Async/Background Errors)
+    PlatformDispatcher.instance.onError = (error, stack) {
+      originalPlatformOnError?.call(error, stack);
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
 
   // 3. Khởi tạo các Service
   final analyticsService = FirebaseAnalyticsService();
-  final messagingService = FirebaseMessagingService();
   final remoteConfigService = FirebaseRemoteConfigService();
 
   // Chạy cấu hình FCM và Remote Config trước khi hiển thị App
-  await messagingService.initialize();
+  if (!isRunningInTest) {
+    final messagingService = FirebaseMessagingService();
+    await messagingService.initialize();
+  }
   await remoteConfigService.initialize();
 
   runApp(
@@ -43,6 +57,11 @@ void main() async {
       remoteConfigService: remoteConfigService,
     ),
   );
+}
+
+bool _isRunningInTestEnvironment() {
+  final bindingType = WidgetsBinding.instance.runtimeType.toString();
+  return bindingType.contains('Test') || bindingType.contains('Patrol');
 }
 
 class MyApp extends StatefulWidget {
@@ -68,8 +87,21 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     final primaryColor = widget.remoteConfigService.getPrimaryColor();
 
-    return ChangeNotifierProvider(
-      create: (context) => AnalyticsProvider()..loadGeneralData(),
+    // Đăng ký các ViewModel (MVVM) cho toàn cây widget qua MultiProvider.
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (context) => AnalyticsProvider()..loadGeneralData(),
+        ),
+        ChangeNotifierProvider(
+          create: (context) =>
+              AuthViewModel(analyticsService: widget.analyticsService),
+        ),
+        ChangeNotifierProvider(
+          create: (context) =>
+              ProfileViewModel(analyticsService: widget.analyticsService),
+        ),
+      ],
       child: MaterialApp(
         scaffoldMessengerKey: MyApp.scaffoldMessengerKey,
         title: 'Lab 3 Firebase App',

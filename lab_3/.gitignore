@@ -47,3 +47,4 @@ app.*.map.json
 # Local Firebase Secrets and API Keys
 lib/config/firebase_config.dart
 android/app/google-services.json
+test_bundle.dart

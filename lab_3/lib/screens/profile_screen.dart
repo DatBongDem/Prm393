@@ -1,20 +1,16 @@
-import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/firebase_analytics_service.dart';
 import '../services/firebase_remote_config_service.dart';
-import '../services/firebase_messaging_service.dart';
-import '../services/pdf_report_service.dart';
-import '../state/analytics_provider.dart';
-import '../services/firestore_service.dart';
-import '../services/fcm_sender_service.dart';
+import '../viewmodels/analytics_provider.dart';
+import '../viewmodels/profile_viewmodel.dart';
 
+// View thuần theo MVVM: mọi nghiệp vụ Firebase (xuất PDF, thông báo,
+// đăng xuất, Crashlytics) nằm trong ProfileViewModel; màn hình này chỉ
+// quan sát trạng thái, gọi ViewModel và hiển thị SnackBar/hộp thoại.
 class ProfileScreen extends StatefulWidget {
   final FirebaseAnalyticsService analyticsService;
   final FirebaseRemoteConfigService remoteConfigService;
@@ -30,92 +26,20 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isExporting = false;
-  String? _pdfUrl;
-  late StreamSubscription<List<Map<String, String>>> _notificationSubscription;
-  List<Map<String, String>> _notifications = List.from(
-    FirebaseMessagingService.notificationHistory,
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    // Đăng ký lắng nghe sự kiện thông báo mới để cập nhật UI
-    _notificationSubscription = FirebaseMessagingService.notificationStream
-        .listen((list) {
-          if (mounted) {
-            setState(() {
-              _notifications = list;
-            });
-          }
-        });
-  }
-
-  @override
-  void dispose() {
-    _notificationSubscription.cancel();
-    super.dispose();
-  }
-
   Future<void> _exportPdfReport(AnalyticsProvider provider) async {
     final topic = provider.hasSearchQuery
         ? provider.currentQuery
         : 'General Analytics';
-    final publications = provider.analysisPublications;
 
-    if (publications.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không có dữ liệu bài báo để xuất báo cáo.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isExporting = true;
-      _pdfUrl = null;
-    });
-
-    // Log Analytics event: export_pdf
-    widget.analyticsService.logCustomEvent(
-      name: 'export_pdf',
-      parameters: {'topic': topic},
+    // Toàn bộ nghiệp vụ xuất PDF + upload Storage nằm trong ProfileViewModel.
+    final errorMessage = await context.read<ProfileViewModel>().exportPdfReport(
+      topic: topic,
+      publications: provider.analysisPublications,
     );
-
-    String? url;
-    String? errorMessage;
-    try {
-      final uploadResult = await PdfReportService.generateAndUploadReport(
-        topic: topic,
-        publications: publications,
-      );
-      url = uploadResult['url'];
-      final fileName = uploadResult['fileName'];
-
-      if (url != null && fileName != null) {
-        await FirestoreService().savePdfReportInfo(
-          topic: topic,
-          url: url,
-          fileName: fileName,
-        );
-      } else {
-        throw Exception('Không nhận được thông tin phản hồi từ Storage.');
-      }
-    } catch (e) {
-      errorMessage = e.toString();
-      print('Lỗi xuất và upload PDF: $e');
-    }
 
     if (!mounted) return;
 
-    setState(() {
-      _isExporting = false;
-      _pdfUrl = url;
-    });
-
-    if (url != null) {
+    if (errorMessage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Xuất báo cáo PDF và tải lên Storage thành công!'),
@@ -125,9 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Xuất báo cáo thất bại: ${errorMessage ?? "Lỗi không xác định"}',
-          ),
+          content: Text(errorMessage),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -160,7 +82,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
 
               try {
-                await FirestoreService().deletePdfReport(docId, pdfUrl);
+                await context.read<ProfileViewModel>().deletePdfReport(
+                  docId,
+                  pdfUrl,
+                );
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -191,57 +116,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _triggerCrash() {
-    widget.analyticsService.logButtonClick(
-      buttonId: 'simulate_crash_btn',
-      screenName: 'Profile',
-    );
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Đang giả lập crash... Ứng dụng sẽ tắt ngay lập tức.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
-
-    Future.delayed(const Duration(seconds: 1), () {
-      FirebaseCrashlytics.instance
-          .crash(); // Kích hoạt lỗi sập app (fatal crash)
-    });
+    context.read<ProfileViewModel>().triggerFatalCrash();
   }
 
   void _triggerHandledException() {
-    widget.analyticsService.logButtonClick(
-      buttonId: 'simulate_handled_exception_btn',
-      screenName: 'Profile',
-    );
-
-    try {
-      throw Exception(
-        'Lỗi giả lập được xử lý bởi Crashlytics (Non-fatal error)',
-      );
-    } catch (e, stack) {
-      FirebaseCrashlytics.instance.recordError(
-        e,
-        stack,
-        reason: 'Nút nhấn kiểm thử lỗi xử lý',
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Đã ghi nhận lỗi xử lý thành công! Kiểm tra trên Firebase Console.',
-          ),
-          behavior: SnackBarBehavior.floating,
+    context.read<ProfileViewModel>().recordHandledException();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Đã ghi nhận lỗi xử lý thành công! Kiểm tra trên Firebase Console.',
         ),
-      );
-    }
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final primaryColor = widget.remoteConfigService.getPrimaryColor();
     final provider = context.watch<AnalyticsProvider>();
+    final profileViewModel = context.watch<ProfileViewModel>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final user = FirebaseAuth.instance.currentUser;
+    final user = profileViewModel.currentUser;
     final displayName = user?.displayName?.trim().isNotEmpty == true
         ? user!.displayName!.trim()
         : user?.email?.split('@').first ?? 'Người dùng';
@@ -427,7 +329,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         avatar: const Icon(Icons.edit_note, size: 16),
                         label: const Text('Nhắc nhở viết'),
                         onPressed: () {
-                          FcmSenderService.sendJournalReminderNotification();
+                          context.read<ProfileViewModel>().sendJournalReminderNotification();
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
@@ -443,7 +345,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         avatar: const Icon(Icons.trending_up, size: 16),
                         label: const Text('Xu hướng mới'),
                         onPressed: () {
-                          FcmSenderService.sendCustomNotification(
+                          context.read<ProfileViewModel>().sendCustomNotification(
                             'Xu hướng nghiên cứu mới 📈',
                             'Chủ đề AI và học sâu (Deep Learning) đang tăng trưởng 150% tuần này!',
                           );
@@ -462,7 +364,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         avatar: const Icon(Icons.star, size: 16),
                         label: const Text('Bài báo hot'),
                         onPressed: () {
-                          FcmSenderService.sendCustomNotification(
+                          context.read<ProfileViewModel>().sendCustomNotification(
                             'Bài viết nổi bật tuần này ⭐',
                             'Nghiên cứu về thế hệ AI tiếp theo đã đạt hơn 1000 lượt tải!',
                           );
@@ -500,30 +402,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: double.infinity,
                   height: 54,
                   child: OutlinedButton.icon(
-                    onPressed: () async {
-                      widget.analyticsService.logButtonClick(
-                        buttonId: 'logout_btn',
-                        screenName: 'Profile',
-                      );
-                      widget.analyticsService.logCustomEvent(
-                        name: 'logout',
-                        parameters: {
-                          if (FirebaseAuth.instance.currentUser?.email != null)
-                            'email': FirebaseAuth.instance.currentUser!.email!,
-                        },
-                      );
-                      try {
-                        await FirebaseMessaging.instance.unsubscribeFromTopic(
-                          'reminder_journal',
-                        );
-                        print(
-                          'FCM: Hủy đăng ký topic reminder_journal thành công do đăng xuất.',
-                        );
-                      } catch (e) {
-                        print('FCM: Lỗi hủy đăng ký topic: $e');
-                      }
-                      await FirebaseAuth.instance.signOut();
-                    },
+                    onPressed: () =>
+                        context.read<ProfileViewModel>().signOut(),
                     icon: Icon(Icons.logout, color: primaryColor),
                     label: Text(
                       'ĐĂNG XUẤT TÀI KHOẢN',
@@ -660,8 +540,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton.icon(
-              onPressed: _isExporting ? null : () => _exportPdfReport(provider),
-              icon: _isExporting
+              onPressed: context.watch<ProfileViewModel>().isExporting
+                  ? null
+                  : () => _exportPdfReport(provider),
+              icon: context.watch<ProfileViewModel>().isExporting
                   ? const SizedBox(
                       width: 18,
                       height: 18,
@@ -687,7 +569,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          if (_pdfUrl != null) ...[
+          if (context.watch<ProfileViewModel>().pdfUrl != null) ...[
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 8),
@@ -701,13 +583,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 4),
             InkWell(
               onTap: () async {
-                final uri = Uri.parse(_pdfUrl!);
+                final uri = Uri.parse(context.read<ProfileViewModel>().pdfUrl!);
                 if (await canLaunchUrl(uri)) {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 }
               },
               child: Text(
-                _pdfUrl!,
+                context.watch<ProfileViewModel>().pdfUrl!,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(
@@ -730,7 +612,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 10),
           StreamBuilder<List<QueryDocumentSnapshot>>(
-            stream: FirestoreService().getPdfReportsStream(),
+            stream: context.read<ProfileViewModel>().pdfReportsStream,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Padding(
@@ -866,7 +748,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildNotificationCenter(bool isDark) {
     return StreamBuilder<List<QueryDocumentSnapshot>>(
-      stream: FirestoreService().getNotificationsStream(),
+      stream: context.read<ProfileViewModel>().notificationsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Container(
@@ -934,7 +816,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () async {
-                      await FirestoreService().clearAllNotifications();
+                      await context.read<ProfileViewModel>().clearAllNotifications();
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Đã xóa tất cả thông báo.'),
@@ -1038,7 +921,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                           onPressed: () async {
-                            await FirestoreService().deleteNotification(doc.id);
+                            await context.read<ProfileViewModel>().deleteNotification(doc.id);
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Đã xóa thông báo.'),

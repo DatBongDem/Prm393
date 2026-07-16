@@ -30,4 +30,11 @@ class FirebaseConfig {
   static const String iosProjectId = 'YOUR_IOS_PROJECT_ID_HERE';
   static const String iosStorageBucket = 'YOUR_IOS_STORAGE_BUCKET_HERE';
   static const String iosBundleId = 'com.example.lab3';
+
+  // ==========================================
+  // 4. OPENALEX API
+  // Email dùng để tham gia Polite Pool của OpenAlex (hàng đợi ưu tiên,
+  // giảm rủi ro bị giới hạn lượt gọi). Điền email học tập của bạn.
+  // ==========================================
+  static const String openAlexEmail = 'YOUR_EMAIL_HERE@fpt.edu.vn';
 }
