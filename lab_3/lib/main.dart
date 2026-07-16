@@ -25,17 +25,21 @@ void main() async {
   if (isRunningInTest) {
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(false);
   } else {
+    final crashlytics = FirebaseCrashlytics.instance;
+    await crashlytics.setCrashlyticsCollectionEnabled(true);
+    await crashlytics.sendUnsentReports();
+
     final originalFlutterOnError = FlutterError.onError;
     final originalPlatformOnError = PlatformDispatcher.instance.onError;
 
     FlutterError.onError = (errorDetails) {
       originalFlutterOnError?.call(errorDetails);
-      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+      crashlytics.recordFlutterFatalError(errorDetails);
     };
     // Bắt các lỗi xảy ra bất đồng bộ bên ngoài luồng giao diện (Async/Background Errors)
     PlatformDispatcher.instance.onError = (error, stack) {
       originalPlatformOnError?.call(error, stack);
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      crashlytics.recordError(error, stack, fatal: true);
       return true;
     };
   }
