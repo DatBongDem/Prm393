@@ -57,12 +57,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _openPdfUrl(String pdfUrl) async {
+    final uri = Uri.tryParse(pdfUrl.trim());
+    if (uri == null || !uri.hasScheme) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Link báo cáo PDF không hợp lệ.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể mở link báo cáo PDF.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _confirmDeleteReport(String docId, String pdfUrl) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Xác nhận xóa'),
-        content: const Text('Bạn có chắc chắn muốn xóa báo cáo này khỏi lịch sử và Firebase Storage không?'),
+        content: const Text(
+          'Bạn có chắc chắn muốn xóa báo cáo này khỏi lịch sử và Firebase Storage không?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -71,7 +98,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              
+
               // Hiển thị trạng thái xóa
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -329,7 +356,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         avatar: const Icon(Icons.edit_note, size: 16),
                         label: const Text('Nhắc nhở viết'),
                         onPressed: () {
-                          context.read<ProfileViewModel>().sendJournalReminderNotification();
+                          context
+                              .read<ProfileViewModel>()
+                              .sendJournalReminderNotification();
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
@@ -402,8 +431,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: double.infinity,
                   height: 54,
                   child: OutlinedButton.icon(
-                    onPressed: () =>
-                        context.read<ProfileViewModel>().signOut(),
+                    onPressed: () => context.read<ProfileViewModel>().signOut(),
                     icon: Icon(Icons.logout, color: primaryColor),
                     label: Text(
                       'ĐĂNG XUẤT TÀI KHOẢN',
@@ -582,12 +610,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 4),
             InkWell(
-              onTap: () async {
-                final uri = Uri.parse(context.read<ProfileViewModel>().pdfUrl!);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
+              onTap: () =>
+                  _openPdfUrl(context.read<ProfileViewModel>().pdfUrl!),
               child: Text(
                 context.watch<ProfileViewModel>().pdfUrl!,
                 maxLines: 2,
@@ -619,7 +643,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 8.0),
                   child: Text(
                     'Không thể tải lịch sử: ${snapshot.error}',
-                    style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
+                    style: GoogleFonts.inter(
+                      color: Colors.redAccent,
+                      fontSize: 12,
+                    ),
                   ),
                 );
               }
@@ -663,17 +690,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   final topicName = data['topic'] ?? 'N/A';
                   final pdfUrl = data['pdfUrl'] ?? '';
                   final createdAt = data['createdAt'] as Timestamp?;
-                  
+
                   String timeStr = 'N/A';
                   if (createdAt != null) {
                     final dateTime = createdAt.toDate().toLocal();
-                    timeStr = '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')} - ${dateTime.day}/${dateTime.month}/${dateTime.year}';
+                    timeStr =
+                        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')} - ${dateTime.day}/${dateTime.month}/${dateTime.year}';
                   }
 
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : Colors.grey.shade50,
+                      color: isDark
+                          ? const Color(0xFF1E293B).withValues(alpha: 0.5)
+                          : Colors.grey.shade50,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isDark ? Colors.white10 : Colors.grey.shade200,
@@ -715,22 +748,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         IconButton(
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
-                          icon: Icon(Icons.open_in_new, color: primaryColor, size: 18),
+                          icon: Icon(
+                            Icons.open_in_new,
+                            color: primaryColor,
+                            size: 18,
+                          ),
                           tooltip: 'Mở PDF',
                           onPressed: pdfUrl.isEmpty
                               ? null
-                              : () async {
-                                  final uri = Uri.parse(pdfUrl);
-                                  if (await canLaunchUrl(uri)) {
-                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                  }
-                                },
+                              : () => _openPdfUrl(pdfUrl),
                         ),
                         const SizedBox(width: 8),
                         IconButton(
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
-                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.redAccent,
+                            size: 18,
+                          ),
                           tooltip: 'Xóa',
                           onPressed: () => _confirmDeleteReport(docId, pdfUrl),
                         ),
@@ -816,7 +852,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () async {
-                      await context.read<ProfileViewModel>().clearAllNotifications();
+                      await context
+                          .read<ProfileViewModel>()
+                          .clearAllNotifications();
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -921,7 +959,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                           onPressed: () async {
-                            await context.read<ProfileViewModel>().deleteNotification(doc.id);
+                            await context
+                                .read<ProfileViewModel>()
+                                .deleteNotification(doc.id);
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
