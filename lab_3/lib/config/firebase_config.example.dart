@@ -7,9 +7,12 @@ class FirebaseConfig {
   // 1. FIREBASE SERVICE ACCOUNT (FCM V1)
   // Lấy từ file JSON private key tải từ Firebase Console -> Project Settings -> Service accounts
   // ==========================================
-  static const String serviceAccountClientEmail = 'YOUR_SERVICE_ACCOUNT_EMAIL_HERE';
-  static const String serviceAccountPrivateKey = 'YOUR_SERVICE_ACCOUNT_PRIVATE_KEY_HERE';
-  static const String serviceAccountClientId = 'YOUR_SERVICE_ACCOUNT_CLIENT_ID_HERE';
+  static const String serviceAccountClientEmail =
+      'YOUR_SERVICE_ACCOUNT_EMAIL_HERE';
+  static const String serviceAccountPrivateKey =
+      'YOUR_SERVICE_ACCOUNT_PRIVATE_KEY_HERE';
+  static const String serviceAccountClientId =
+      'YOUR_SERVICE_ACCOUNT_CLIENT_ID_HERE';
 
   // ==========================================
   // 2. ANDROID CONFIGURATION
@@ -37,4 +40,5 @@ class FirebaseConfig {
   // giảm rủi ro bị giới hạn lượt gọi). Điền email học tập của bạn.
   // ==========================================
   static const String openAlexEmail = 'YOUR_EMAIL_HERE@fpt.edu.vn';
+  static const String openAlexApiKey = 'YOUR_OPENALEX_API_KEY_HERE';
 }

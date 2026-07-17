@@ -46,8 +46,21 @@ void main() {
       await openTab($, 'Profile');
       await $('Cá nhân').waitUntilVisible();
 
-      // Cuộn tới nút đăng xuất rồi nhấn.
-      await $('ĐĂNG XUẤT TÀI KHOẢN').scrollTo().tap();
+      // Cuộn từng nhịp tới nút đăng xuất ở cuối Profile rồi nhấn.
+      final logoutButton = $('ĐĂNG XUẤT TÀI KHOẢN');
+      for (var attempt = 0; attempt < 8; attempt++) {
+        try {
+          await logoutButton.waitUntilVisible(
+            timeout: const Duration(milliseconds: 800),
+          );
+          break;
+        } catch (_) {
+          await $.tester.drag($(Scrollable).first, const Offset(0, -650));
+          await $.pumpAndSettle();
+        }
+      }
+      await logoutButton.waitUntilVisible(timeout: const Duration(seconds: 5));
+      await logoutButton.tap();
 
       // Xác minh đã quay về màn hình Đăng nhập.
       await $(
