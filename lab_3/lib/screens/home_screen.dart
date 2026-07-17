@@ -388,7 +388,11 @@ class _DashboardScreenState extends State<HomeScreen> {
               final query = provider.recentSearches[index];
               return InputChip(
                 key: ValueKey('recent_search_$query'),
-                avatar: const Icon(Icons.schedule, size: 16),
+                avatar: const Icon(
+                  Icons.schedule,
+                  size: 16,
+                  color: Colors.white,
+                ),
                 label: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 150),
                   child: Text(
@@ -405,10 +409,22 @@ class _DashboardScreenState extends State<HomeScreen> {
                 onPressed: () => _handleSearch(query),
                 onDeleted: () => provider.removeRecentSearch(query),
                 deleteButtonTooltipMessage: 'Xóa $query khỏi lịch sử',
-                deleteIcon: const Icon(Icons.close, size: 16),
-                backgroundColor: Colors.white.withValues(alpha: 0.14),
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
-                iconTheme: const IconThemeData(color: Colors.white70),
+                deleteIcon: const Icon(
+                  Icons.close,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                backgroundColor: const Color(
+                  0xFF0F172A,
+                ).withValues(alpha: 0.28),
+                color: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.pressed)) {
+                    return Colors.white.withValues(alpha: 0.26);
+                  }
+                  return const Color(0xFF0F172A).withValues(alpha: 0.28);
+                }),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.24)),
+                iconTheme: const IconThemeData(color: Colors.white),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
