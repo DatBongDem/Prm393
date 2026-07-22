@@ -932,7 +932,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             print('FStore Storage: Đã xóa file thành công.');
           } catch (e) {
             // Có thể lỗi CORS hoặc file đã bị xóa trước đó
-   // ==========================================
+            print('Storage Delete Error (CORS/Not Found): $e');
+          }
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã xóa tài liệu PDF thành công.'), backgroundColor: Colors.green),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi khi xóa: $e'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    }
+  }
+
+  // ==========================================
   // TAB 4: BÁO CÁO BUG
   // ==========================================
   Widget _buildBugsTab() {
@@ -1496,28 +1515,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Đóng', style: GoogleFonts.outfit(color: Colors.white)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }inAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildStatusUpdateBtn(doc.id, 'Mới', Colors.orangeAccent, status, setDialogState),
-                          _buildStatusUpdateBtn(doc.id, 'Đang xử lý', Colors.cyanAccent, status, setDialogState),
-                          _buildStatusUpdateBtn(doc.id, 'Đã giải quyết', Colors.greenAccent, status, setDialogState),
-                        ],
-                      ),
                     ],
                   ),
                 ),
