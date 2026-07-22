@@ -24,15 +24,15 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
   }
 
-  // Tăng số lượng nhận cho chiến dịch thực tế
-  await FirebaseMessagingService._incrementReceivedCount(message.data);
+  // Tăng số lượng nhận và hiển thị thực tế cho chiến dịch
+  await FirebaseMessagingService._incrementReceivedAndImpressionCount(message.data);
 }
 
 class FirebaseMessagingService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
-  // Helper tăng số lượng Nhận thực tế trên Firestore của Campaign
-  static Future<void> _incrementReceivedCount(Map<String, dynamic> data) async {
+  // Helper tăng số lượng Nhận và Hiển thị (Impressions) trên Firestore của Campaign
+  static Future<void> _incrementReceivedAndImpressionCount(Map<String, dynamic> data) async {
     final campaignId = data['campaignId'] as String?;
     if (campaignId != null && campaignId.isNotEmpty) {
       try {
@@ -41,16 +41,17 @@ class FirebaseMessagingService {
             .doc(campaignId)
             .update({
           'receivedCount': FieldValue.increment(1),
+          'impressionsCount': FieldValue.increment(1),
         });
-        print('FCM Tracker: Đã tăng receivedCount cho campaign $campaignId');
+        print('FCM Tracker: Đã tăng receivedCount và impressionsCount cho campaign $campaignId');
       } catch (e) {
-        print('FCM Tracker: Lỗi tăng receivedCount: $e');
+        print('FCM Tracker: Lỗi cập nhật số lượng nhận/hiển thị: $e');
       }
     }
   }
 
-  // Helper tăng số lượng Xem thực tế trên Firestore của Campaign
-  static Future<void> _incrementViewedCount(Map<String, dynamic> data) async {
+  // Helper tăng số lượng Mở (Open Count) trên Firestore của Campaign
+  static Future<void> _incrementOpenedCount(Map<String, dynamic> data) async {
     final campaignId = data['campaignId'] as String?;
     if (campaignId != null && campaignId.isNotEmpty) {
       try {
@@ -58,11 +59,11 @@ class FirebaseMessagingService {
             .collection('campaigns')
             .doc(campaignId)
             .update({
-          'viewedCount': FieldValue.increment(1),
+          'openedCount': FieldValue.increment(1),
         });
-        print('FCM Tracker: Đã tăng viewedCount cho campaign $campaignId');
+        print('FCM Tracker: Đã tăng openedCount cho campaign $campaignId');
       } catch (e) {
-        print('FCM Tracker: Lỗi tăng viewedCount: $e');
+        print('FCM Tracker: Lỗi tăng openedCount: $e');
       }
     }
   }
@@ -131,8 +132,8 @@ class FirebaseMessagingService {
       // 2. Lưu thông báo vào bộ nhớ RAM (tương thích ngược nếu có widget lắng nghe)
       addNotification(title, body);
 
-      // 3. Tăng số lượng nhận cho chiến dịch thực tế
-      _incrementReceivedCount(message.data);
+      // 3. Tăng số lượng nhận và hiển thị thực tế
+      _incrementReceivedAndImpressionCount(message.data);
       
       // Hiển thị SnackBar nổi trực quan thông qua GlobalKey
       MyApp.scaffoldMessengerKey.currentState?.showSnackBar(
@@ -191,8 +192,8 @@ class FirebaseMessagingService {
       // 2. Lưu thông báo vào bộ nhớ RAM
       addNotification(title, body);
 
-      // 3. Tăng số lượng xem/mở cho chiến dịch thực tế
-      _incrementViewedCount(message.data);
+      // 3. Tăng số lượng xem/mở (openedCount) thực tế
+      _incrementOpenedCount(message.data);
     });
 
     // 6. Xử lý trường hợp app đã bị tắt hẳn (Terminated) và được mở thông qua click vào thông báo
@@ -208,8 +209,8 @@ class FirebaseMessagingService {
       // 2. Lưu thông báo vào bộ nhớ RAM
       addNotification(title, body);
 
-      // 3. Tăng số lượng xem/mở cho chiến dịch thực tế
-      _incrementViewedCount(initialMessage.data);
+      // 3. Tăng số lượng xem/mở (openedCount) thực tế
+      _incrementOpenedCount(initialMessage.data);
     }
   }
 }

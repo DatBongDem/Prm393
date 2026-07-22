@@ -1392,7 +1392,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'status': 'Đang gửi',
         'sentCount': sent,
         'receivedCount': 0,
-        'viewedCount': 0,
+        'impressionsCount': 0,
+        'openedCount': 0,
       });
       final campaignId = docRef.id;
 
@@ -1494,12 +1495,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ? DateFormat('HH:mm dd/MM/yyyy').format(sentAt.toDate())
                         : 'N/A';
 
-                    final int sent = item['sentCount'] ?? 1;
+                    final int sent = item['sentCount'] ?? 0;
                     final int received = item['receivedCount'] ?? 0;
-                    final int viewed = item['viewedCount'] ?? 0;
+                    final int impressions = item['impressionsCount'] ?? 0;
+                    final int opened = item['openedCount'] ?? 0;
 
                     final double receivedPct = sent > 0 ? (received / sent) : 0.0;
-                    final double viewedPct = received > 0 ? (viewed / received) : 0.0;
+                    final double impressionsPct = received > 0 ? (impressions / received) : 0.0;
+                    final double openedPct = impressions > 0 ? (opened / impressions) : 0.0;
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 16),
@@ -1537,18 +1540,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                           const Divider(color: Color(0xFF1E293B), height: 20),
                           
-                          // Hàng chỉ số Nhận / Xem / Gửi
+                          // Hàng chỉ số Sends / Received / Impressions / Open count
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _buildCampaignStatCol('ĐÃ GỬI (Sent)', sent.toString(), '100% mục tiêu', Colors.white),
-                              _buildCampaignStatCol('ĐÃ NHẬN (Received)', received.toString(), '${(receivedPct * 100).toStringAsFixed(1)}% tỷ lệ', Colors.greenAccent),
-                              _buildCampaignStatCol('ĐÃ XEM (Viewed)', viewed.toString(), '${(viewedPct * 100).toStringAsFixed(1)}% tương tác', Colors.orangeAccent),
+                              _buildCampaignStatCol('SENDS', sent.toString(), 'Gửi từ Firebase', Colors.white),
+                              _buildCampaignStatCol('RECEIVED', received.toString(), '${(receivedPct * 100).toStringAsFixed(1)}% tỷ lệ', Colors.blueAccent),
+                              _buildCampaignStatCol('IMPRESSIONS', impressions.toString(), '${(impressionsPct * 100).toStringAsFixed(1)}% hiển thị', Colors.greenAccent),
+                              _buildCampaignStatCol('OPEN COUNT', opened.toString(), '${(openedPct * 100).toStringAsFixed(1)}% mở', Colors.orangeAccent),
                             ],
                           ),
                           const SizedBox(height: 12),
                           
-                          // Thanh so sánh tiến trình trực quan
+                          // Thanh so sánh tiến trình trực quan 4 tầng
                           Stack(
                             children: [
                               Container(
@@ -1559,11 +1563,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 widthFactor: receivedPct.clamp(0.0, 1.0),
                                 child: Container(
                                   height: 6,
+                                  decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.4), borderRadius: BorderRadius.circular(3)),
+                                ),
+                              ),
+                              FractionallySizedBox(
+                                widthFactor: (receivedPct * impressionsPct).clamp(0.0, 1.0),
+                                child: Container(
+                                  height: 6,
                                   decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.4), borderRadius: BorderRadius.circular(3)),
                                 ),
                               ),
                               FractionallySizedBox(
-                                widthFactor: (receivedPct * viewedPct).clamp(0.0, 1.0),
+                                widthFactor: (receivedPct * impressionsPct * openedPct).clamp(0.0, 1.0),
                                 child: Container(
                                   height: 6,
                                   decoration: BoxDecoration(
