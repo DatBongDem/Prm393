@@ -70,9 +70,22 @@ class FcmSenderService {
         }
       },
       'android': {
+        'priority': 'high', // Độ ưu tiên cao nhất để hiển thị bên ngoài app khi tắt app
         'notification': {
           'click_action': 'FLUTTER_NOTIFICATION_CLICK',
           'sound': 'default',
+          'channel_id': 'high_importance_channel', // Khớp với cấu hình trong AndroidManifest.xml
+        }
+      },
+      'apns': {
+        'headers': {
+          'apns-priority': '10', // APNS độ ưu tiên cao nhất cho iOS
+        },
+        'payload': {
+          'aps': {
+            'sound': 'default',
+            'badge': 1,
+          }
         }
       }
     };
