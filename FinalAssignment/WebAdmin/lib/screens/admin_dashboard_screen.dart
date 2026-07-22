@@ -1502,50 +1502,50 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // TAB 5: GỬI THÔNG BÁO & CHIẾN DỊCH
   // ==========================================
   Widget _buildCampaignsTab() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isLarge = constraints.maxWidth > 1000;
-        if (isLarge) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 4,
-                child: Column(
-                  children: [
-                    _buildNotificationSenderFormCard(),
-                    const SizedBox(height: 24),
-                    _buildTemplateManagerCard(),
-                  ],
+    return SingleChildScrollView(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isLarge = constraints.maxWidth > 1000;
+          if (isLarge) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    children: [
+                      _buildNotificationSenderFormCard(),
+                      const SizedBox(height: 20),
+                      _buildTemplateManagerCard(),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                flex: 5,
-                child: _buildCampaignsHistoryCard(),
-              ),
-            ],
-          );
-        } else {
-          return SingleChildScrollView(
-            child: Column(
+                const SizedBox(width: 24),
+                Expanded(
+                  flex: 5,
+                  child: _buildCampaignsHistoryCard(),
+                ),
+              ],
+            );
+          } else {
+            return Column(
               children: [
                 _buildNotificationSenderFormCard(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 _buildTemplateManagerCard(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 _buildCampaignsHistoryCard(),
               ],
-            ),
-          );
-        }
-      },
+            );
+          }
+        },
+      ),
     );
   }
 
   Widget _buildNotificationSenderFormCard() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
@@ -1559,29 +1559,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Text(
               'Gửi Thông Báo FCM',
-              style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              'Gửi thông báo đẩy đến tất cả các thiết bị Mobile đã đăng ký topic "reminder_journal"',
-              style: GoogleFonts.outfit(color: Colors.white60, fontSize: 12),
+              'Gửi thông báo đẩy đến tất cả các thiết bị Mobile',
+              style: GoogleFonts.outfit(color: Colors.white60, fontSize: 11),
             ),
-            const Divider(color: Color(0xFF334155), height: 30),
+            const Divider(color: Color(0xFF334155), height: 20),
             
             // Notification Title
             TextFormField(
               controller: _notiTitleController,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 labelText: 'Tiêu đề thông báo',
-                labelStyle: const TextStyle(color: Colors.white70),
+                labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Colors.white24),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               validator: (value) {
@@ -1589,23 +1590,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
 
             // Notification Body
             TextFormField(
               controller: _notiBodyController,
-              maxLines: 4,
-              style: const TextStyle(color: Colors.white),
+              maxLines: 2,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 labelText: 'Nội dung thông báo',
-                labelStyle: const TextStyle(color: Colors.white70),
+                labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Colors.white24),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               validator: (value) {
@@ -1613,29 +1615,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 16),
 
             // Submit Button
             SizedBox(
-              height: 52,
+              height: 44,
               child: ElevatedButton.icon(
                 onPressed: _isSendingNotification ? null : _sendNotification,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.pinkAccent,
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: Colors.pinkAccent.withOpacity(0.5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 icon: _isSendingNotification
                     ? const SizedBox(
-                        height: 20,
-                        width: 20,
+                        height: 18,
+                        width: 18,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
-                    : const Icon(Icons.send),
+                    : const Icon(Icons.send, size: 16),
                 label: Text(
                   _isSendingNotification ? 'ĐANG GỬI...' : 'GỬI THÔNG BÁO HÀNG LOẠT',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
               ),
             ),
@@ -1819,9 +1821,80 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  Future<void> _sendNotificationDirectly(String title, String body) async {
+    setState(() {
+      _isSendingNotification = true;
+    });
+
+    try {
+      // 1. Tính tổng số active users đăng ký trong hệ thống
+      final activeUsersSnap = await FirebaseFirestore.instance.collection('active_users').get();
+      final userEmails = new Set();
+      for (var doc of activeUsersSnap.docs) {
+        final data = doc.data();
+        final email = data['email'];
+        if (email != null && email.toString().trim() !== '') {
+          userEmails.add(email.toString());
+        }
+      }
+      final int sent = userEmails.size > 0 ? userEmails.size : 1;
+
+      // 2. Tạo bản ghi chiến dịch gửi trên Firestore 'campaigns' ở trạng thái 'Đang gửi'
+      final docRef = await FirebaseFirestore.instance.collection('campaigns').add({
+        'title': title,
+        'body': body,
+        'sentAt': FieldValue.serverTimestamp(),
+        'targetTopic': 'reminder_journal',
+        'status': 'Đang gửi',
+        'sentCount': sent,
+        'receivedCount': 0,
+        'impressionsCount': 0,
+        'openedCount': 0,
+      });
+      final campaignId = docRef.id;
+
+      // 3. Gọi FCM service gửi thông báo đến topic reminder_journal thật
+      final success = await FcmSenderService.sendCustomNotification(
+        title,
+        body,
+        topic: 'reminder_journal',
+        campaignId: campaignId,
+      );
+
+      // 4. Cập nhật trạng thái chiến dịch trong Firestore
+      await docRef.update({
+        'status': success ? 'Thành công' : 'Lỗi gửi',
+      });
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Đã gửi thông báo mẫu "' + title + '" thành công!'), backgroundColor: Colors.green),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gửi thông báo qua FCM thất bại. Vui lòng kiểm tra Service Account.'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Đã xảy ra lỗi khi gửi trực tiếp: ' + e.toString()), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingNotification = false;
+        });
+      }
+    }
+  }
+
   Widget _buildTemplateManagerCard() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
@@ -1839,12 +1912,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     Text(
                       'Danh sách Thông báo Mẫu',
-                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Tạo sẵn nội dung để áp dụng nhanh khi gửi',
-                      style: GoogleFonts.outfit(color: Colors.white60, fontSize: 12),
+                      style: GoogleFonts.outfit(color: Colors.white60, fontSize: 11),
                     ),
                   ],
                 ),
@@ -1855,18 +1928,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   foregroundColor: Colors.pinkAccent,
                   side: const BorderSide(color: Colors.pinkAccent),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
                 onPressed: () => _showTemplateDialog(),
-                icon: const Icon(Icons.add, size: 16),
-                label: Text('Tạo Mẫu', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12)),
+                icon: const Icon(Icons.add, size: 14),
+                label: Text('Tạo Mẫu', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11)),
               ),
             ],
           ),
-          const Divider(color: Color(0xFF334155), height: 30),
+          const Divider(color: Color(0xFF334155), height: 20),
           
           // Stream list templates
           SizedBox(
-            height: 250,
+            height: 220,
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('notification_templates').orderBy('createdAt', descending: true).snapshots(),
               builder: (context, snapshot) {
@@ -1878,7 +1952,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   return Center(
                     child: Text(
                       'Chưa có thông báo mẫu nào.',
-                      style: GoogleFonts.outfit(color: Colors.white38, fontSize: 13),
+                      style: GoogleFonts.outfit(color: Colors.white38, fontSize: 12),
                     ),
                   );
                 }
@@ -1890,8 +1964,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     final body = doc['body'] ?? '';
 
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0F172A),
                         borderRadius: BorderRadius.circular(10),
@@ -1919,14 +1993,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           
-                          // Nút áp dụng nhanh
+                          // Nút gửi trực tiếp (Gửi luôn)
                           IconButton(
-                            tooltip: 'Áp dụng nhanh',
+                            tooltip: 'Gửi ngay lập tức',
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.playlist_add_check, color: Colors.greenAccent, size: 22),
+                            icon: const Icon(Icons.rocket_launch, color: Colors.pinkAccent, size: 20),
+                            onPressed: _isSendingNotification ? null : () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  title: Text('Xác nhận gửi', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  content: Text('Bạn có chắc chắn muốn gửi trực tiếp thông báo mẫu "' + title + '" đến tất cả thiết bị không?', style: GoogleFonts.outfit(color: Colors.white70, fontSize: 14)),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: const Text('Gửi ngay', style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                await _sendNotificationDirectly(title, body);
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Nút áp dụng nhanh
+                          IconButton(
+                            tooltip: 'Điền vào Form',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.edit_note, color: Colors.greenAccent, size: 22),
                             onPressed: () {
                               setState(() {
                                 _notiTitleController.text = title;
@@ -1948,7 +2051,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             tooltip: 'Chỉnh sửa',
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 18),
+                            icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 16),
                             onPressed: () => _showTemplateDialog(doc: doc),
                           ),
                           const SizedBox(width: 8),
@@ -1958,7 +2061,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             tooltip: 'Xóa mẫu',
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.delete, color: Colors.redAccent, size: 18),
+                            icon: const Icon(Icons.delete, color: Colors.redAccent, size: 16),
                             onPressed: () async {
                               final confirm = await showDialog<bool>(
                                 context: context,
