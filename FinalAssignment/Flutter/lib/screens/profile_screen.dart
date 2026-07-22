@@ -808,7 +808,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildNotificationCenter(bool isDark) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
+    return StreamBuilder<List<QueryDocumentSnapshot>>(
       stream: context.read<ProfileViewModel>().notificationsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -909,92 +909,189 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   separatorBuilder: (context, index) =>
                       const Divider(height: 16),
                   itemBuilder: (context, index) {
-                    final notif = docs[index];
+                    final doc = docs[index];
+                    final notif = doc.data() as Map<String, dynamic>;
                     final title = notif['title'] ?? '';
                     final body = notif['body'] ?? '';
-                    final date = notif['receivedAt'] as DateTime?;
+                    final timestamp = notif['receivedAt'] as Timestamp?;
+                    final isRead = notif['isRead'] as bool? ?? false;
 
-                    String timeStr = 'N/A';
-                    if (date != null) {
+                    String timeStr = 'Đang nhận...';
+                    if (timestamp != null) {
+                      final date = timestamp.toDate();
                       timeStr =
                           '${date.hour}:${date.minute.toString().padLeft(2, '0')} - ${date.day}/${date.month}/${date.year}';
                     }
 
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.notifications_active,
-                          color: Colors.blueAccent,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      title,
-                                      style: GoogleFonts.outfit(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                        color: isDark
-                                            ? Colors.white
-                                            : Colors.black87,
-                                      ),
+                    return InkWell(
+                      onTap: () async {
+                        // 1. Đánh dấu đã đọc trên Firestore (và tăng openedCount của chiến dịch)
+                        await context
+                            .read<ProfileViewModel>()
+                            .markNotificationAsRead(doc.id);
+                        
+                        // 2. Hiển thị Dialog chi tiết thông báo
+                        if (!context.mounted) return;
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: Row(
+                              children: [
+                                const Icon(Icons.notifications_active, color: Colors.pinkAccent),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    style: GoogleFonts.outfit(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: isDark ? Colors.white : Colors.black87,
                                     ),
                                   ),
-                                  Text(
-                                    timeStr,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      color: Colors.grey,
-                                    ),
+                                ),
+                              ],
+                            ),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  timeStr,
+                                  style: GoogleFonts.inter(color: Colors.grey, fontSize: 11),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  body,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: isDark ? Colors.grey.shade300 : Colors.black87,
+                                    height: 1.4,
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                body,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: isDark
-                                      ? Colors.grey.shade400
-                                      : Colors.grey.shade600,
-                                  height: 1.3,
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text(
+                                  'Đóng',
+                                  style: GoogleFonts.outfit(color: Colors.pinkAccent, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ],
                           ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 6.0),
+                        decoration: BoxDecoration(
+                          color: !isRead 
+                              ? (isDark ? Colors.pinkAccent.withOpacity(0.05) : Colors.pinkAccent.withOpacity(0.03))
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            size: 16,
-                            color: Colors.redAccent,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: () async {
-                            await context
-                                .read<ProfileViewModel>()
-                                .deleteNotification(notif['id'] ?? '');
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Đã xóa thông báo.'),
-                                behavior: SnackBarBehavior.floating,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.notifications_active,
+                              color: !isRead ? Colors.pinkAccent : Colors.grey,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                title,
+                                                style: GoogleFonts.outfit(
+                                                  fontWeight: !isRead ? FontWeight.bold : FontWeight.normal,
+                                                  fontSize: 13,
+                                                  color: isDark
+                                                      ? Colors.white
+                                                      : Colors.black87,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (!isRead) ...[
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                width: 6,
+                                                height: 6,
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.pinkAccent,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                            ]
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        timeStr,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 10,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    body,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade600,
+                                      height: 1.3,
+                                      fontWeight: !isRead ? FontWeight.w500 : FontWeight.normal,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
-                            );
-                          },
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                size: 16,
+                                color: Colors.redAccent,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () async {
+                                await context
+                                    .read<ProfileViewModel>()
+                                    .deleteNotification(doc.id);
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Đã xóa thông báo.'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     );
                   },
                 ),

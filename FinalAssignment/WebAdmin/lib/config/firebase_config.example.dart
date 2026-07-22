@@ -27,4 +27,10 @@ class FirebaseConfig {
   static const String iosProjectId = 'YOUR_IOS_PROJECT_ID_HERE';
   static const String iosStorageBucket = 'YOUR_IOS_STORAGE_BUCKET_HERE';
   static const String iosBundleId = 'com.example.app';
+
+  // ==========================================
+  // 4. ADMIN LOGIN CONFIGURATION
+  // ==========================================
+  static const String adminEmail = 'admin@gmail.com';
+  static const String adminPassword = '12345678';
 }

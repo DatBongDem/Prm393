@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../main.dart';
 import 'firestore_service.dart';
@@ -22,10 +23,50 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       message.notification!.body ?? '',
     );
   }
+
+  // Tăng số lượng nhận và hiển thị thực tế cho chiến dịch
+  await FirebaseMessagingService._incrementReceivedAndImpressionCount(message.data);
 }
 
 class FirebaseMessagingService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+
+  // Helper tăng số lượng Nhận và Hiển thị (Impressions) trên Firestore của Campaign
+  static Future<void> _incrementReceivedAndImpressionCount(Map<String, dynamic> data) async {
+    final campaignId = data['campaignId'] as String?;
+    if (campaignId != null && campaignId.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('campaigns')
+            .doc(campaignId)
+            .update({
+          'receivedCount': FieldValue.increment(1),
+          'impressionsCount': FieldValue.increment(1),
+        });
+        print('FCM Tracker: Đã tăng receivedCount và impressionsCount cho campaign $campaignId');
+      } catch (e) {
+        print('FCM Tracker: Lỗi cập nhật số lượng nhận/hiển thị: $e');
+      }
+    }
+  }
+
+  // Helper tăng số lượng Mở (Open Count) trên Firestore của Campaign
+  static Future<void> _incrementOpenedCount(Map<String, dynamic> data) async {
+    final campaignId = data['campaignId'] as String?;
+    if (campaignId != null && campaignId.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('campaigns')
+            .doc(campaignId)
+            .update({
+          'openedCount': FieldValue.increment(1),
+        });
+        print('FCM Tracker: Đã tăng openedCount cho campaign $campaignId');
+      } catch (e) {
+        print('FCM Tracker: Lỗi tăng openedCount: $e');
+      }
+    }
+  }
 
   // Luu lich su cac thong bao FCM nhan duoc trong phien chay hien tai.
   static final List<Map<String, String>> notificationHistory =
@@ -86,10 +127,13 @@ class FirebaseMessagingService {
       final body = message.notification?.body ?? '';
       
       // 1. Lưu thông báo vào Firestore (bền vững)
-      FirestoreService().addNotification(title, body);
+      FirestoreService().addNotification(title, body, campaignId: message.data['campaignId']);
 
       // 2. Lưu thông báo vào bộ nhớ RAM (tương thích ngược nếu có widget lắng nghe)
       addNotification(title, body);
+
+      // 3. Tăng số lượng nhận và hiển thị thực tế
+      _incrementReceivedAndImpressionCount(message.data);
       
       // Hiển thị SnackBar nổi trực quan thông qua GlobalKey
       MyApp.scaffoldMessengerKey.currentState?.showSnackBar(
@@ -143,10 +187,13 @@ class FirebaseMessagingService {
       final body = message.notification?.body ?? '';
       
       // 1. Lưu thông báo vào Firestore
-      FirestoreService().addNotification(title, body);
+      FirestoreService().addNotification(title, body, campaignId: message.data['campaignId'], isRead: true);
 
       // 2. Lưu thông báo vào bộ nhớ RAM
       addNotification(title, body);
+
+      // 3. Tăng số lượng xem/mở (openedCount) thực tế
+      _incrementOpenedCount(message.data);
     });
 
     // 6. Xử lý trường hợp app đã bị tắt hẳn (Terminated) và được mở thông qua click vào thông báo
@@ -157,10 +204,13 @@ class FirebaseMessagingService {
       final body = initialMessage.notification?.body ?? '';
       
       // 1. Lưu thông báo vào Firestore
-      FirestoreService().addNotification(title, body);
+      FirestoreService().addNotification(title, body, campaignId: initialMessage.data['campaignId'], isRead: true);
 
       // 2. Lưu thông báo vào bộ nhớ RAM
       addNotification(title, body);
+
+      // 3. Tăng số lượng xem/mở (openedCount) thực tế
+      _incrementOpenedCount(initialMessage.data);
     }
   }
 }

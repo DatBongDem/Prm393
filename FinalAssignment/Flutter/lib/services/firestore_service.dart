@@ -175,7 +175,7 @@ class FirestoreService {
   }
 
   // 6. Thêm thông báo mới nhận được vào Firestore
-  Future<void> addNotification(String title, String body) async {
+  Future<void> addNotification(String title, String body, {String? campaignId, bool isRead = false}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
@@ -184,10 +184,40 @@ class FirestoreService {
         'body': body,
         'userId': user.uid,
         'receivedAt': FieldValue.serverTimestamp(),
+        'isRead': isRead,
+        if (campaignId != null) 'campaignId': campaignId,
       });
       print('Firestore: Đã lưu thông báo mới nhận được vào db.');
     } catch (e) {
       print('Lỗi lưu thông báo vào Firestore: $e');
+    }
+  }
+
+  // Đánh dấu một thông báo đã đọc và gửi xác nhận tăng open count cho Campaign
+  Future<void> markNotificationAsRead(String docId) async {
+    try {
+      final docRef = _notificationsCollection.doc(docId);
+      final doc = await docRef.get();
+      if (!doc.exists) return;
+      
+      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final isAlreadyRead = data['isRead'] as bool? ?? false;
+
+      // Chỉ xử lý nếu thông báo chưa đọc
+      if (!isAlreadyRead) {
+        await docRef.update({'isRead': true});
+        print('Firestore: Đã đánh dấu thông báo $docId là ĐÃ ĐỌC.');
+
+        final campaignId = data['campaignId'] as String?;
+        if (campaignId != null && campaignId.isNotEmpty) {
+          await FirebaseFirestore.instance.collection('campaigns').doc(campaignId).update({
+            'openedCount': FieldValue.increment(1),
+          });
+          print('FCM Tracker: Đã tăng openedCount của campaign $campaignId sau khi user đọc.');
+        }
+      }
+    } catch (e) {
+      print('Lỗi đánh dấu đã đọc thông báo: $e');
     }
   }
 

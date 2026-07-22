@@ -5,6 +5,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/fcm_sender_service.dart';
+import '../services/crashlytics_service.dart';
 
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -22,34 +24,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _userSearchController = TextEditingController();
   final _pdfSearchController = TextEditingController();
   final _bugSearchController = TextEditingController();
+  String _selectedBugFilter = 'All';
 
   // Notification form controllers
   final _notificationFormKey = GlobalKey<FormState>();
   final _notiTitleController = TextEditingController();
   final _notiBodyController = TextEditingController();
   bool _isSendingNotification = false;
-
-  // Mock campaigns history with Sent, Received, Viewed statistics
-  static final List<Map<String, dynamic>> _mockCampaigns = [
-    {
-      'title': 'Cập nhật tính năng mới 🚀',
-      'body': 'Ứng dụng di động đã hỗ trợ tính năng xuất PDF nhanh hơn gấp 2 lần. Trải nghiệm ngay!',
-      'sentAt': DateTime.now().subtract(const Duration(days: 3)),
-      'status': 'Thành công',
-      'sentCount': 150,
-      'receivedCount': 142,
-      'viewedCount': 98,
-    },
-    {
-      'title': 'Nhắc nhở viết nhật ký nghiên cứu 📝',
-      'body': 'Đừng quên ghi lại những ý tưởng khoa học sáng tạo ngày hôm nay của bạn.',
-      'sentAt': DateTime.now().subtract(const Duration(days: 1)),
-      'status': 'Thành công',
-      'sentCount': 150,
-      'receivedCount': 136,
-      'viewedCount': 110,
-    },
-  ];
 
   @override
   void dispose() {
@@ -301,69 +282,74 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             return StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('bugs').snapshots(),
               builder: (context, snapshotBugs) {
-                // Tính số user duy nhất từ active_users
-                final userEmails = <String>{};
-                if (snapshotUsers.hasData) {
-                  for (var doc in snapshotUsers.data!.docs) {
-                    final data = doc.data() as Map<String, dynamic>?;
-                    final email = data?['email'] as String?;
-                    if (email != null && email.isNotEmpty) {
-                      userEmails.add(email);
-                    }
-                  }
-                }
-
-                final totalUsers = userEmails.length;
-                final totalPdfs = snapshotPdfs.hasData ? snapshotPdfs.data!.docs.length : 0;
-                final activeBugs = snapshotBugs.hasData
-                    ? snapshotBugs.data!.docs.where((doc) {
+                return StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('campaigns').snapshots(),
+                  builder: (context, snapshotCampaigns) {
+                    // Tính số user duy nhất từ active_users
+                    final userEmails = <String>{};
+                    if (snapshotUsers.hasData) {
+                      for (var doc in snapshotUsers.data!.docs) {
                         final data = doc.data() as Map<String, dynamic>?;
-                        return data?['status'] != 'Đã giải quyết';
-                      }).length
-                    : 0;
-                final totalCampaigns = _mockCampaigns.length;
+                        final email = data?['email'] as String?;
+                        if (email != null && email.isNotEmpty) {
+                          userEmails.add(email);
+                        }
+                      }
+                    }
 
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final crossAxisCount = constraints.maxWidth > 900
-                        ? 4
-                        : constraints.maxWidth > 550
-                            ? 2
-                            : 1;
-                    
-                    return GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 1.8,
-                      children: [
-                        _buildStatCard(
-                          'Người dùng đăng ký',
-                          totalUsers.toString(),
-                          Icons.people,
-                          Colors.pinkAccent,
-                        ),
-                        _buildStatCard(
-                          'Báo cáo PDF đã xuất',
-                          totalPdfs.toString(),
-                          Icons.picture_as_pdf,
-                          Colors.purpleAccent,
-                        ),
-                        _buildStatCard(
-                          'Bug chưa xử lý',
-                          activeBugs.toString(),
-                          Icons.bug_report,
-                          Colors.redAccent,
-                        ),
-                        _buildStatCard(
-                          'Campaign thông báo',
-                          totalCampaigns.toString(),
-                          Icons.campaign,
-                          Colors.orangeAccent,
-                        ),
-                      ],
+                    final totalUsers = userEmails.length;
+                    final totalPdfs = snapshotPdfs.hasData ? snapshotPdfs.data!.docs.length : 0;
+                    final activeBugs = snapshotBugs.hasData
+                        ? snapshotBugs.data!.docs.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>?;
+                            return data?['status'] != 'Đã giải quyết';
+                          }).length
+                        : 0;
+                    final totalCampaigns = snapshotCampaigns.hasData ? snapshotCampaigns.data!.docs.length : 0;
+
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final crossAxisCount = constraints.maxWidth > 900
+                            ? 4
+                            : constraints.maxWidth > 550
+                                ? 2
+                                : 1;
+                        
+                        return GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 1.8,
+                          children: [
+                            _buildStatCard(
+                              'Người dùng đăng ký',
+                              totalUsers.toString(),
+                              Icons.people,
+                              Colors.pinkAccent,
+                            ),
+                            _buildStatCard(
+                              'Báo cáo PDF đã xuất',
+                              totalPdfs.toString(),
+                              Icons.picture_as_pdf,
+                              Colors.purpleAccent,
+                            ),
+                            _buildStatCard(
+                              'Bug chưa xử lý',
+                              activeBugs.toString(),
+                              Icons.bug_report,
+                              Colors.redAccent,
+                            ),
+                            _buildStatCard(
+                              'Campaign thông báo',
+                              totalCampaigns.toString(),
+                              Icons.campaign,
+                              Colors.orangeAccent,
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
                 );
@@ -481,7 +467,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               
               // Biểu đồ
               SizedBox(
-                height: 200,
+                height: 220,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -721,45 +707,52 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: 40,
-                      columns: [
-                        DataColumn(label: Text('Email', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('User ID', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Số ngày Active', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Hoạt động cuối', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                      ],
-                      rows: list.map((user) {
-                        final lastActiveTs = user['lastActive'] as Timestamp?;
-                        final formattedDate = lastActiveTs != null
-                            ? DateFormat('HH:mm dd/MM/yyyy').format(lastActiveTs.toDate())
-                            : 'Không xác định';
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            columnSpacing: 40,
+                            columns: [
+                              DataColumn(label: Text('Email', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('User ID', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Số ngày Active', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Hoạt động cuối', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                            ],
+                            rows: list.map((user) {
+                              final lastActiveTs = user['lastActive'] as Timestamp?;
+                              final formattedDate = lastActiveTs != null
+                                  ? DateFormat('HH:mm dd/MM/yyyy').format(lastActiveTs.toDate())
+                                  : 'Không xác định';
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(user['email'] as String, style: const TextStyle(color: Colors.white70))),
-                            DataCell(Text(user['userId'] as String, style: const TextStyle(color: Colors.white54, fontSize: 12))),
-                            DataCell(Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.pinkAccent.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${user['activeDays']} ngày',
-                                style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 13),
-                              ),
-                            )),
-                            DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white70))),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(user['email'] as String, style: const TextStyle(color: Colors.white70))),
+                                  DataCell(Text(user['userId'] as String, style: const TextStyle(color: Colors.white54, fontSize: 12))),
+                                  DataCell(Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.pinkAccent.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '${user['activeDays']} ngày',
+                                      style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                  )),
+                                  DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white70))),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -822,65 +815,72 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: 40,
-                      columns: [
-                        DataColumn(label: Text('Chủ đề (Topic)', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Tên tệp (File Name)', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Ngày tạo', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Hành động', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                      ],
-                      rows: docs.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>? ?? {};
-                        final docId = doc.id;
-                        final topic = data['topic'] ?? 'N/A';
-                        final fileName = data['fileName'] ?? 'N/A';
-                        final pdfUrl = data['pdfUrl'] ?? '';
-                        final createdAt = data['createdAt'] as Timestamp?;
-                        final formattedDate = createdAt != null
-                            ? DateFormat('HH:mm dd/MM/yyyy').format(createdAt.toDate())
-                            : 'N/A';
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            columnSpacing: 40,
+                            columns: [
+                              DataColumn(label: Text('Chủ đề (Topic)', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Tên tệp (File Name)', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Ngày tạo', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Hành động', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                            ],
+                            rows: docs.map((doc) {
+                              final data = doc.data() as Map<String, dynamic>? ?? {};
+                              final docId = doc.id;
+                              final topic = data['topic'] ?? 'N/A';
+                              final fileName = data['fileName'] ?? 'N/A';
+                              final pdfUrl = data['pdfUrl'] ?? '';
+                              final createdAt = data['createdAt'] as Timestamp?;
+                              final formattedDate = createdAt != null
+                                  ? DateFormat('HH:mm dd/MM/yyyy').format(createdAt.toDate())
+                                  : 'N/A';
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(topic, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500))),
-                            DataCell(Text(fileName, style: const TextStyle(color: Colors.white70, fontSize: 13))),
-                            DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
-                            DataCell(Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.open_in_new, color: Colors.pinkAccent),
-                                  tooltip: 'Mở / Xem PDF',
-                                  onPressed: () async {
-                                    if (pdfUrl.isNotEmpty) {
-                                      final uri = Uri.parse(pdfUrl);
-                                      if (await canLaunchUrl(uri)) {
-                                        await launchUrl(uri);
-                                      } else {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Không thể mở đường dẫn PDF này.')),
-                                        );
-                                      }
-                                    }
-                                  },
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                  tooltip: 'Xóa tài liệu',
-                                  onPressed: () => _deletePdf(docId, pdfUrl),
-                                ),
-                              ],
-                            )),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(topic, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500))),
+                                  DataCell(Text(fileName, style: const TextStyle(color: Colors.white70, fontSize: 13))),
+                                  DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.open_in_new, color: Colors.pinkAccent),
+                                        tooltip: 'Mở / Xem PDF',
+                                        onPressed: () async {
+                                          if (pdfUrl.isNotEmpty) {
+                                            final uri = Uri.parse(pdfUrl);
+                                            if (await canLaunchUrl(uri)) {
+                                              await launchUrl(uri);
+                                            } else {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Không thể mở đường dẫn PDF này.')),
+                                              );
+                                            }
+                                          }
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                        tooltip: 'Xóa tài liệu',
+                                        onPressed: () => _deletePdf(docId, pdfUrl),
+                                      ),
+                                    ],
+                                  )),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -948,126 +948,380 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // TAB 4: BÁO CÁO BUG
   // ==========================================
   Widget _buildBugsTab() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildTabHeader('Báo cáo Bug & Crash', 'Giám sát và cập nhật trạng thái các lỗi tự động hoặc do người dùng gửi'),
-        const SizedBox(height: 24),
-        
-        _buildSearchBar(_bugSearchController, 'Tìm kiếm theo mô tả lỗi hoặc email...', () => setState(() {})),
-        const SizedBox(height: 16),
-        
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF334155)),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('bugs').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs;
+
+        // 1. Tính toán thống kê từ Firestore docs
+        int totalCrashes = 0;
+        int fatalCrashes = 0;
+        int userReports = 0;
+        int unresolvedBugs = 0;
+
+        for (var doc in docs) {
+          final data = doc.data() as Map<String, dynamic>? ?? {};
+          final type = data['type']?.toString() ?? 'User Report';
+          final status = data['status']?.toString() ?? 'Mới';
+
+          if (type.contains('Crash')) {
+            totalCrashes++;
+            if (type.contains('Fatal')) {
+              fatalCrashes++;
+            }
+          } else if (type == 'User Report') {
+            userReports++;
+          }
+
+          if (status != 'Đã giải quyết') {
+            unresolvedBugs++;
+          }
+        }
+
+        // 2. Lọc danh sách theo filter dropdown và search query
+        var filteredDocs = List<DocumentSnapshot>.from(docs);
+
+        // Lọc theo bộ lọc dropdown
+        if (_selectedBugFilter == 'Crashlytics') {
+          filteredDocs = filteredDocs.where((doc) {
+            final type = (doc.data() as Map<String, dynamic>?)?['type']?.toString() ?? '';
+            return type.contains('Crash');
+          }).toList();
+        } else if (_selectedBugFilter == 'Fatal') {
+          filteredDocs = filteredDocs.where((doc) {
+            final type = (doc.data() as Map<String, dynamic>?)?['type']?.toString() ?? '';
+            return type == 'Crash (Fatal)';
+          }).toList();
+        } else if (_selectedBugFilter == 'UserReport') {
+          filteredDocs = filteredDocs.where((doc) {
+            final type = (doc.data() as Map<String, dynamic>?)?['type']?.toString() ?? '';
+            return type == 'User Report';
+          }).toList();
+        }
+
+        // Lọc theo search query
+        final query = _bugSearchController.text.trim().toLowerCase();
+        if (query.isNotEmpty) {
+          filteredDocs = filteredDocs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>?;
+            final title = data?['title']?.toString().toLowerCase() ?? '';
+            final desc = data?['description']?.toString().toLowerCase() ?? '';
+            final email = data?['userEmail']?.toString().toLowerCase() ?? '';
+            return title.contains(query) || desc.contains(query) || email.contains(query);
+          }).toList();
+        }
+
+        // Sắp xếp theo timestamp giảm dần
+        filteredDocs.sort((a, b) {
+          final aTime = (a.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
+          final bTime = (b.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime);
+        });
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTabHeader(
+              'Báo cáo Bug & Crashlytics',
+              'Giám sát lỗi Crashlytics tự động từ thiết bị và phản hồi từ người dùng (Lưu trữ Firestore)',
             ),
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('bugs').snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            const SizedBox(height: 20),
 
-                var docs = snapshot.data!.docs;
-                final query = _bugSearchController.text.trim().toLowerCase();
-                if (query.isNotEmpty) {
-                  docs = docs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>?;
-                    final title = data?['title']?.toString().toLowerCase() ?? '';
-                    final desc = data?['description']?.toString().toLowerCase() ?? '';
-                    final email = data?['userEmail']?.toString().toLowerCase() ?? '';
-                    return title.contains(query) || desc.contains(query) || email.contains(query);
-                  }).toList();
-                }
-
-                // Sắp xếp theo timestamp giảm dần
-                docs.sort((a, b) {
-                  final aTime = (a.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
-                  final bTime = (b.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
-                  if (aTime == null) return 1;
-                  if (bTime == null) return -1;
-                  return bTime.compareTo(aTime);
-                });
-
-                if (docs.isEmpty) {
-                  return Center(
-                    child: Text('Không tìm thấy báo cáo lỗi nào.', style: GoogleFonts.outfit(color: Colors.white60)),
-                  );
-                }
-
-                return SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: 40,
-                      columns: [
-                        DataColumn(label: Text('Loại Lỗi', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Người Gửi / Email', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Tiêu Đề / Sự Cố', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Trạng Thái', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Thời Gian', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Hành Động', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                      ],
-                      rows: docs.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>? ?? {};
-                        final type = data['type'] ?? 'User Report';
-                        final email = data['userEmail'] ?? 'anonymous';
-                        final title = data['title'] ?? 'N/A';
-                        final status = data['status'] ?? 'Mới';
-                        final timestamp = data['timestamp'] as Timestamp?;
-                        final formattedDate = timestamp != null
-                            ? DateFormat('HH:mm dd/MM/yyyy').format(timestamp.toDate())
-                            : 'N/A';
-
-                        Color statusColor = Colors.orangeAccent;
-                        if (status == 'Đang xử lý') statusColor = Colors.cyanAccent;
-                        if (status == 'Đã giải quyết') statusColor = Colors.greenAccent;
-
-                        Color typeColor = Colors.yellowAccent;
-                        if (type.toString().contains('Fatal')) typeColor = Colors.redAccent;
-
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(type, style: TextStyle(color: typeColor, fontWeight: FontWeight.bold, fontSize: 13))),
-                            DataCell(Text(email, style: const TextStyle(color: Colors.white70))),
-                            DataCell(Text(
-                              title.length > 30 ? '${title.substring(0, 30)}...' : title,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                            )),
-                            DataCell(Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
-                            )),
-                            DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
-                            DataCell(ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.pinkAccent.withOpacity(0.2),
-                                side: const BorderSide(color: Colors.pinkAccent, width: 1),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                              onPressed: () => _showBugDetailDialog(doc),
-                              child: const Text('Chi Tiết', style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold)),
-                            )),
-                          ],
-                        );
-                      }).toList(),
+            // Hàng Thẻ Thống Kê Mini
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final crossAxisCount = constraints.maxWidth > 900 ? 4 : (constraints.maxWidth > 600 ? 2 : 1);
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: constraints.maxWidth > 900 ? 2.5 : 3.0,
+                  children: [
+                    _buildMiniStatCard(
+                      'TỔNG SỐ CRASH',
+                      totalCrashes.toString(),
+                      'Lỗi hệ thống tự bắt',
+                      Icons.offline_bolt,
+                      Colors.orangeAccent,
                     ),
-                  ),
+                    _buildMiniStatCard(
+                      'CRASH NGHIÊM TRỌNG (FATAL)',
+                      fatalCrashes.toString(),
+                      'Làm sập ứng dụng',
+                      Icons.dangerous,
+                      Colors.redAccent,
+                    ),
+                    _buildMiniStatCard(
+                      'BÁO CÁO NGƯỜI DÙNG',
+                      userReports.toString(),
+                      'Phản hồi thủ công',
+                      Icons.rate_review,
+                      Colors.blueAccent,
+                    ),
+                    _buildMiniStatCard(
+                      'BUG CHƯA XỬ LÝ',
+                      unresolvedBugs.toString(),
+                      'Cần kiểm tra lại',
+                      Icons.bug_report,
+                      Colors.yellowAccent,
+                    ),
+                  ],
                 );
               },
             ),
-          ),
-        )
-      ],
+            const SizedBox(height: 24),
+
+            // Thanh Bộ Lọc & Tìm Kiếm
+            Row(
+              children: [
+                Expanded(
+                  child: _buildSearchBar(
+                    _bugSearchController,
+                    'Tìm kiếm theo mô tả lỗi hoặc email...',
+                    () => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF334155)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedBugFilter,
+                      dropdownColor: const Color(0xFF1E293B),
+                      icon: const Icon(Icons.filter_alt, color: Colors.pinkAccent),
+                      style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w500),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('Tất cả lỗi')),
+                        DropdownMenuItem(value: 'Crashlytics', child: Text('Chỉ lỗi Crashlytics')),
+                        DropdownMenuItem(value: 'Fatal', child: Text('Chỉ lỗi sập app (Fatal)')),
+                        DropdownMenuItem(value: 'UserReport', child: Text('Chỉ báo cáo người dùng')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedBugFilter = val;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Bảng Danh Sách Lỗi
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: filteredDocs.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Không tìm thấy báo cáo lỗi nào phù hợp.',
+                          style: GoogleFonts.outfit(color: Colors.white60),
+                        ),
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.vertical,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                child: DataTable(
+                                  columnSpacing: 40,
+                                  columns: [
+                                    DataColumn(
+                                      label: Text(
+                                        'Nguồn / Loại Lỗi',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Người Gửi / Email',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Tiêu Đề / Sự Cố',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Trạng Thái',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Thời Gian',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Hành Động',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                  rows: filteredDocs.map((doc) {
+                                    final data = doc.data() as Map<String, dynamic>? ?? {};
+                                    final type = data['type'] ?? 'User Report';
+                                    final email = data['userEmail'] ?? 'anonymous';
+                                    final title = data['title'] ?? 'N/A';
+                                    final status = data['status'] ?? 'Mới';
+                                    final timestamp = data['timestamp'] as Timestamp?;
+                                    final formattedDate = timestamp != null
+                                        ? DateFormat('HH:mm dd/MM/yyyy').format(timestamp.toDate())
+                                        : 'N/A';
+
+                                    Color statusColor = Colors.orangeAccent;
+                                    if (status == 'Đang xử lý') statusColor = Colors.cyanAccent;
+                                    if (status == 'Đã giải quyết') statusColor = Colors.greenAccent;
+
+                                    // Badge thiết kế nguồn lỗi chuyên nghiệp
+                                    Widget sourceBadge;
+                                    if (type.toString().contains('Fatal')) {
+                                      sourceBadge = Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.redAccent.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.flash_on, color: Colors.redAccent, size: 13),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Fatal Crashlytics',
+                                              style: TextStyle(
+                                                color: Colors.redAccent,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    } else if (type.toString().contains('Crash')) {
+                                      sourceBadge = Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orangeAccent.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.bug_report, color: Colors.orangeAccent, size: 13),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Crashlytics',
+                                              style: TextStyle(
+                                                color: Colors.orangeAccent,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    } else {
+                                      sourceBadge = Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blueAccent.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.person, color: Colors.blueAccent, size: 13),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'User Report',
+                                              style: TextStyle(
+                                                color: Colors.blueAccent,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+
+                                    return DataRow(
+                                      cells: [
+                                        DataCell(sourceBadge),
+                                        DataCell(Text(email, style: const TextStyle(color: Colors.white70))),
+                                        DataCell(Text(
+                                          title.length > 30 ? '${title.substring(0, 30)}...' : title,
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                                        )),
+                                        DataCell(Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: statusColor.withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child:
+                                              Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                                        )),
+                                        DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
+                                        DataCell(ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.pinkAccent.withOpacity(0.2),
+                                            side: const BorderSide(color: Colors.pinkAccent, width: 1),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          ),
+                                          onPressed: () => _showBugDetailDialog(doc),
+                                          child: const Text(
+                                            'Chi Tiết',
+                                            style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold),
+                                          ),
+                                        )),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1111,9 +1365,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildDetailRow('Loại báo cáo:', type, isBoldValue: true),
+                      _buildDetailRow('Nguồn lỗi:', type, isBoldValue: true),
                       const SizedBox(height: 10),
-                      _buildDetailRow('Người gửi:', email),
+                      _buildDetailRow('Người gửi / Email:', email),
                       const SizedBox(height: 10),
                       _buildDetailRow('Thiết bị:', deviceInfo),
                       const SizedBox(height: 10),
@@ -1132,7 +1386,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'Mô tả chi tiết / Stack Trace:',
+                        'Mô tả chi tiết / Stack Trace / Thông số:',
                         style: GoogleFonts.outfit(color: Colors.white60, fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       const SizedBox(height: 8),
@@ -1150,6 +1404,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
+                      
                       Text(
                         'Cập nhật trạng thái xử lý:',
                         style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
@@ -1247,33 +1502,50 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // TAB 5: GỬI THÔNG BÁO & CHIẾN DỊCH
   // ==========================================
   Widget _buildCampaignsTab() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth > 900) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(flex: 4, child: _buildNotificationSenderFormCard()),
-              const SizedBox(width: 24),
-              Expanded(flex: 5, child: _buildCampaignsHistoryCard()),
-            ],
-          );
-        } else {
-          return Column(
-            children: [
-              _buildNotificationSenderFormCard(),
-              const SizedBox(height: 24),
-              _buildCampaignsHistoryCard(),
-            ],
-          );
-        }
-      },
+    return SingleChildScrollView(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isLarge = constraints.maxWidth > 1000;
+          if (isLarge) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    children: [
+                      _buildNotificationSenderFormCard(),
+                      const SizedBox(height: 20),
+                      _buildTemplateManagerCard(),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  flex: 5,
+                  child: _buildCampaignsHistoryCard(),
+                ),
+              ],
+            );
+          } else {
+            return Column(
+              children: [
+                _buildNotificationSenderFormCard(),
+                const SizedBox(height: 20),
+                _buildTemplateManagerCard(),
+                const SizedBox(height: 20),
+                _buildCampaignsHistoryCard(),
+              ],
+            );
+          }
+        },
+      ),
     );
   }
 
   Widget _buildNotificationSenderFormCard() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
@@ -1287,29 +1559,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Text(
               'Gửi Thông Báo FCM',
-              style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              'Gửi thông báo đẩy đến tất cả các thiết bị Mobile đã đăng ký topic "reminder_journal"',
-              style: GoogleFonts.outfit(color: Colors.white60, fontSize: 12),
+              'Gửi thông báo đẩy đến tất cả các thiết bị Mobile',
+              style: GoogleFonts.outfit(color: Colors.white60, fontSize: 11),
             ),
-            const Divider(color: Color(0xFF334155), height: 30),
+            const Divider(color: Color(0xFF334155), height: 20),
             
             // Notification Title
             TextFormField(
               controller: _notiTitleController,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 labelText: 'Tiêu đề thông báo',
-                labelStyle: const TextStyle(color: Colors.white70),
+                labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Colors.white24),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               validator: (value) {
@@ -1317,23 +1590,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
 
             // Notification Body
             TextFormField(
               controller: _notiBodyController,
-              maxLines: 4,
-              style: const TextStyle(color: Colors.white),
+              maxLines: 2,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 labelText: 'Nội dung thông báo',
-                labelStyle: const TextStyle(color: Colors.white70),
+                labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Colors.white24),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               validator: (value) {
@@ -1341,29 +1615,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 16),
 
             // Submit Button
             SizedBox(
-              height: 52,
+              height: 44,
               child: ElevatedButton.icon(
                 onPressed: _isSendingNotification ? null : _sendNotification,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.pinkAccent,
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: Colors.pinkAccent.withOpacity(0.5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 icon: _isSendingNotification
                     ? const SizedBox(
-                        height: 20,
-                        width: 20,
+                        height: 18,
+                        width: 18,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
-                    : const Icon(Icons.send),
+                    : const Icon(Icons.send, size: 16),
                 label: Text(
                   _isSendingNotification ? 'ĐANG GỬI...' : 'GỬI THÔNG BÁO HÀNG LOẠT',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
               ),
             ),
@@ -1373,7 +1647,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // Hàm gửi thông báo (Giả lập chiến dịch với thống kê Nhận / Xem / Gửi)
+  // Hàm gửi thông báo thật qua FCM v1 và lưu Firestore
   Future<void> _sendNotification() async {
     if (!_notificationFormKey.currentState!.validate()) return;
 
@@ -1384,48 +1658,439 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final title = _notiTitleController.text.trim();
     final body = _notiBodyController.text.trim();
 
-    // Mô phỏng trễ 1 giây
-    await Future.delayed(const Duration(milliseconds: 800));
-
     try {
-      final int sent = 150; // Mặc định giả lập gửi cho 150 người dùng hoạt động
-      final int received = sent - (sent * 0.05 + (DateTime.now().millisecond % 10)).toInt(); // Nhận được khoảng 90-95%
-      final int viewed = (received * (0.6 + 0.25 * (DateTime.now().microsecond % 10) / 10)).toInt(); // Xem khoảng 60-85%
+      // 1. Tính tổng số active users đăng ký trong hệ thống
+      final activeUsersSnap = await FirebaseFirestore.instance.collection('active_users').get();
+      final userEmails = <String>{};
+      for (var doc in activeUsersSnap.docs) {
+        final data = doc.data();
+        final email = data['email'] as String?;
+        if (email != null && email.isNotEmpty) {
+          userEmails.add(email);
+        }
+      }
+      final int sent = userEmails.isNotEmpty ? userEmails.length : 1;
 
-      setState(() {
-        _mockCampaigns.insert(0, {
-          'title': title,
-          'body': body,
-          'sentAt': DateTime.now(),
-          'status': 'Thành công',
-          'sentCount': sent,
-          'receivedCount': received,
-          'viewedCount': viewed,
-        });
-        _isSendingNotification = false;
+      // 2. Tạo bản ghi chiến dịch gửi trên Firestore 'campaigns' ở trạng thái 'Đang gửi'
+      final docRef = await FirebaseFirestore.instance.collection('campaigns').add({
+        'title': title,
+        'body': body,
+        'sentAt': FieldValue.serverTimestamp(),
+        'targetTopic': 'reminder_journal',
+        'status': 'Đang gửi',
+        'sentCount': sent,
+        'receivedCount': 0,
+        'impressionsCount': 0,
+        'openedCount': 0,
       });
+      final campaignId = docRef.id;
 
-      _notiTitleController.clear();
-      _notiBodyController.clear();
+      // 3. Gọi FCM service gửi thông báo đến topic reminder_journal thật kèm payload campaignId
+      final success = await FcmSenderService.sendCustomNotification(
+        title,
+        body,
+        topic: 'reminder_journal',
+        campaignId: campaignId,
+      );
+
+      // 4. Cập nhật trạng thái chiến dịch trong Firestore
+      await docRef.update({
+        'status': success ? 'Thành công' : 'Lỗi gửi',
+      });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Chiến dịch thông báo đã được gửi và thống kê thành công!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã gửi thông báo thành công đến các thiết bị di động!'), backgroundColor: Colors.green),
+          );
+          _notiTitleController.clear();
+          _notiBodyController.clear();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gửi thông báo qua FCM thất bại. Vui lòng kiểm tra Service Account.'), backgroundColor: Colors.redAccent),
+          );
+        }
       }
     } catch (e) {
-      setState(() {
-        _isSendingNotification = false;
-      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Đã xảy ra lỗi: $e'), backgroundColor: Colors.redAccent),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingNotification = false;
+        });
+      }
     }
+  }
+
+  void _showTemplateDialog({DocumentSnapshot? doc}) {
+    final titleController = TextEditingController(text: doc != null ? doc['title'] : '');
+    final bodyController = TextEditingController(text: doc != null ? doc['body'] : '');
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            doc == null ? 'Thêm thông báo mẫu mới' : 'Sửa thông báo mẫu',
+            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: titleController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Tiêu đề mẫu',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.white24),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    validator: (val) => val == null || val.trim().isEmpty ? 'Nhập tiêu đề mẫu' : null,
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: bodyController,
+                    maxLines: 4,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Nội dung mẫu',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.white24),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    validator: (val) => val == null || val.trim().isEmpty ? 'Nhập nội dung mẫu' : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Hủy', style: GoogleFonts.outfit(color: Colors.white60)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent),
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final title = titleController.text.trim();
+                final body = bodyController.text.trim();
+
+                if (doc == null) {
+                  await FirebaseFirestore.instance.collection('notification_templates').add({
+                    'title': title,
+                    'body': body,
+                    'createdAt': FieldValue.serverTimestamp(),
+                  });
+                } else {
+                  await FirebaseFirestore.instance.collection('notification_templates').doc(doc.id).update({
+                    'title': title,
+                    'body': body,
+                  });
+                }
+                if (mounted) Navigator.pop(context);
+              },
+              child: Text(doc == null ? 'Tạo mẫu' : 'Cập nhật', style: GoogleFonts.outfit(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _sendNotificationDirectly(String title, String body) async {
+    setState(() {
+      _isSendingNotification = true;
+    });
+
+    try {
+      // 1. Tính tổng số active users đăng ký trong hệ thống
+      final activeUsersSnap = await FirebaseFirestore.instance.collection('active_users').get();
+      final userEmails = <String>{};
+      for (var doc in activeUsersSnap.docs) {
+        final data = doc.data();
+        final email = data['email'];
+        if (email != null && email.toString().trim().isNotEmpty) {
+          userEmails.add(email.toString());
+        }
+      }
+      final int sent = userEmails.isNotEmpty ? userEmails.length : 1;
+
+      // 2. Tạo bản ghi chiến dịch gửi trên Firestore 'campaigns' ở trạng thái 'Đang gửi'
+      final docRef = await FirebaseFirestore.instance.collection('campaigns').add({
+        'title': title,
+        'body': body,
+        'sentAt': FieldValue.serverTimestamp(),
+        'targetTopic': 'reminder_journal',
+        'status': 'Đang gửi',
+        'sentCount': sent,
+        'receivedCount': 0,
+        'impressionsCount': 0,
+        'openedCount': 0,
+      });
+      final campaignId = docRef.id;
+
+      // 3. Gọi FCM service gửi thông báo đến topic reminder_journal thật
+      final success = await FcmSenderService.sendCustomNotification(
+        title,
+        body,
+        topic: 'reminder_journal',
+        campaignId: campaignId,
+      );
+
+      // 4. Cập nhật trạng thái chiến dịch trong Firestore
+      await docRef.update({
+        'status': success ? 'Thành công' : 'Lỗi gửi',
+      });
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Đã gửi thông báo mẫu "' + title + '" thành công!'), backgroundColor: Colors.green),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gửi thông báo qua FCM thất bại. Vui lòng kiểm tra Service Account.'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Đã xảy ra lỗi khi gửi trực tiếp: ' + e.toString()), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingNotification = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildTemplateManagerCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF334155)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Danh sách Thông báo Mẫu',
+                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tạo sẵn nội dung để áp dụng nhanh khi gửi',
+                      style: GoogleFonts.outfit(color: Colors.white60, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.pinkAccent.withOpacity(0.2),
+                  foregroundColor: Colors.pinkAccent,
+                  side: const BorderSide(color: Colors.pinkAccent),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                onPressed: () => _showTemplateDialog(),
+                icon: const Icon(Icons.add, size: 14),
+                label: Text('Tạo Mẫu', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11)),
+              ),
+            ],
+          ),
+          const Divider(color: Color(0xFF334155), height: 20),
+          
+          // Stream list templates
+          SizedBox(
+            height: 220,
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('notification_templates').orderBy('createdAt', descending: true).snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final docs = snapshot.data!.docs;
+                if (docs.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Chưa có thông báo mẫu nào.',
+                      style: GoogleFonts.outfit(color: Colors.white38, fontSize: 12),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final title = doc['title'] ?? '';
+                    final body = doc['body'] ?? '';
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF334155)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  body,
+                                  style: GoogleFonts.outfit(color: Colors.white60, fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          
+                          // Nút gửi trực tiếp (Gửi luôn)
+                          IconButton(
+                            tooltip: 'Gửi ngay lập tức',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.rocket_launch, color: Colors.pinkAccent, size: 20),
+                            onPressed: _isSendingNotification ? null : () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  title: Text('Xác nhận gửi', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  content: Text('Bạn có chắc chắn muốn gửi trực tiếp thông báo mẫu "' + title + '" đến tất cả thiết bị không?', style: GoogleFonts.outfit(color: Colors.white70, fontSize: 14)),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: const Text('Gửi ngay', style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                await _sendNotificationDirectly(title, body);
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Nút áp dụng nhanh
+                          IconButton(
+                            tooltip: 'Điền vào Form',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.edit_note, color: Colors.greenAccent, size: 22),
+                            onPressed: () {
+                              setState(() {
+                                _notiTitleController.text = title;
+                                _notiBodyController.text = body;
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Đã điền thông báo mẫu vào Form gửi!'),
+                                  backgroundColor: Colors.pinkAccent,
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          
+                          // Nút sửa
+                          IconButton(
+                            tooltip: 'Chỉnh sửa',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 16),
+                            onPressed: () => _showTemplateDialog(doc: doc),
+                          ),
+                          const SizedBox(width: 8),
+                          
+                          // Nút xóa
+                          IconButton(
+                            tooltip: 'Xóa mẫu',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.delete, color: Colors.redAccent, size: 16),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  title: Text('Xác nhận xóa', style: GoogleFonts.outfit(color: Colors.white)),
+                                  content: Text('Bạn có chắc chắn muốn xóa mẫu này?', style: GoogleFonts.outfit(color: Colors.white70)),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+                                    TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Xóa', style: TextStyle(color: Colors.redAccent))),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                await FirebaseFirestore.instance.collection('notification_templates').doc(doc.id).delete();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildCampaignsHistoryCard() {
@@ -1446,111 +2111,142 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Thống kê chiến dịch gửi thông báo và tỷ lệ Nhận / Xem của người dùng',
+            'Thống kê chiến dịch gửi thông báo và tỷ lệ Nhận / Xem của người dùng thực tế',
             style: GoogleFonts.outfit(color: Colors.white60, fontSize: 12),
           ),
           const Divider(color: Color(0xFF334155), height: 30),
           Expanded(
-            child: _mockCampaigns.isEmpty
-                ? Center(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('campaigns').snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                var docs = snapshot.data!.docs;
+                // Sắp xếp giảm dần theo thời gian gửi
+                docs.sort((a, b) {
+                  final aTime = (a.data() as Map<String, dynamic>?)?['sentAt'] as Timestamp?;
+                  final bTime = (b.data() as Map<String, dynamic>?)?['sentAt'] as Timestamp?;
+                  if (aTime == null) return 1;
+                  if (bTime == null) return -1;
+                  return bTime.compareTo(aTime);
+                });
+
+                if (docs.isEmpty) {
+                  return Center(
                     child: Text('Chưa có chiến dịch nào được gửi.', style: GoogleFonts.outfit(color: Colors.white60)),
-                  )
-                : ListView.builder(
-                    itemCount: _mockCampaigns.length,
-                    itemBuilder: (context, index) {
-                      final item = _mockCampaigns[index];
-                      final title = item['title'] ?? 'N/A';
-                      final body = item['body'] ?? '';
-                      final sentAt = item['sentAt'] as DateTime?;
-                      final formattedDate = sentAt != null
-                          ? DateFormat('HH:mm dd/MM/yyyy').format(sentAt)
-                          : 'N/A';
+                  );
+                }
 
-                      final int sent = item['sentCount'] ?? 150;
-                      final int received = item['receivedCount'] ?? 135;
-                      final int viewed = item['viewedCount'] ?? 95;
+                return ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final item = docs[index].data() as Map<String, dynamic>? ?? {};
+                    final title = item['title'] ?? 'N/A';
+                    final body = item['body'] ?? '';
+                    final sentAt = item['sentAt'] as Timestamp?;
+                    final formattedDate = sentAt != null
+                        ? DateFormat('HH:mm dd/MM/yyyy').format(sentAt.toDate())
+                        : 'N/A';
 
-                      final double receivedPct = sent > 0 ? (received / sent) : 0.0;
-                      final double viewedPct = received > 0 ? (viewed / received) : 0.0;
+                    final int sent = item['sentCount'] ?? 0;
+                    final int received = item['receivedCount'] ?? 0;
+                    final int impressions = item['impressionsCount'] ?? 0;
+                    final int opened = item['openedCount'] ?? 0;
 
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF334155)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    title,
-                                    style: GoogleFonts.outfit(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 14),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                    final double receivedPct = sent > 0 ? (received / sent) : 0.0;
+                    final double impressionsPct = received > 0 ? (impressions / received) : 0.0;
+                    final double openedPct = impressions > 0 ? (opened / impressions) : 0.0;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF334155)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  style: GoogleFonts.outfit(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Text(
-                                  formattedDate,
-                                  style: GoogleFonts.outfit(color: Colors.white38, fontSize: 11),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              body,
-                              style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const Divider(color: Color(0xFF1E293B), height: 20),
-                            
-                            // Hàng chỉ số Nhận / Xem / Gửi
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                _buildCampaignStatCol('ĐÃ GỬI (Sent)', sent.toString(), '100% mục tiêu', Colors.white),
-                                _buildCampaignStatCol('ĐÃ NHẬN (Received)', received.toString(), '${(receivedPct * 100).toStringAsFixed(1)}% tỷ lệ', Colors.greenAccent),
-                                _buildCampaignStatCol('ĐÃ XEM (Viewed)', viewed.toString(), '${(viewedPct * 100).toStringAsFixed(1)}% tương tác', Colors.orangeAccent),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            
-                            // Thanh so sánh tiến trình trực quan
-                            Stack(
-                              children: [
-                                Container(
+                              ),
+                              Text(
+                                formattedDate,
+                                style: GoogleFonts.outfit(color: Colors.white38, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            body,
+                            style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const Divider(color: Color(0xFF1E293B), height: 20),
+                          
+                          // Hàng chỉ số Sends / Received / Impressions / Open count
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _buildCampaignStatCol('SỐ GỬI', sent.toString(), 'Firebase đã gửi', Colors.white),
+                              _buildCampaignStatCol('SỐ NHẬN', received.toString(), '${(receivedPct * 100).toStringAsFixed(1)}% tỷ lệ', Colors.blueAccent),
+                              _buildCampaignStatCol('SỐ ĐÃ XEM', impressions.toString(), '${(impressionsPct * 100).toStringAsFixed(1)}% hiển thị', Colors.greenAccent),
+                              _buildCampaignStatCol('SỐ ĐỌC (MỞ)', opened.toString(), '${(openedPct * 100).toStringAsFixed(1)}% tỷ lệ', Colors.orangeAccent),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          
+                          // Thanh so sánh tiến trình trực quan 4 tầng
+                          Stack(
+                            children: [
+                              Container(
+                                height: 6,
+                                decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(3)),
+                              ),
+                              FractionallySizedBox(
+                                widthFactor: receivedPct.clamp(0.0, 1.0),
+                                child: Container(
                                   height: 6,
-                                  decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(3)),
+                                  decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.4), borderRadius: BorderRadius.circular(3)),
                                 ),
-                                FractionallySizedBox(
-                                  widthFactor: receivedPct.clamp(0.0, 1.0),
-                                  child: Container(
-                                    height: 6,
-                                    decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.4), borderRadius: BorderRadius.circular(3)),
+                              ),
+                              FractionallySizedBox(
+                                widthFactor: (receivedPct * impressionsPct).clamp(0.0, 1.0),
+                                child: Container(
+                                  height: 6,
+                                  decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.4), borderRadius: BorderRadius.circular(3)),
+                                ),
+                              ),
+                              FractionallySizedBox(
+                                widthFactor: (receivedPct * impressionsPct * openedPct).clamp(0.0, 1.0),
+                                child: Container(
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(colors: [Colors.pinkAccent, Colors.purpleAccent]),
+                                    borderRadius: BorderRadius.circular(3),
                                   ),
                                 ),
-                                FractionallySizedBox(
-                                  widthFactor: (receivedPct * viewedPct).clamp(0.0, 1.0),
-                                  child: Container(
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(colors: [Colors.pinkAccent, Colors.purpleAccent]),
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -1593,6 +2289,54 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMiniStatCard(String title, String value, String subtitle, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF334155), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.outfit(color: Colors.white60, fontSize: 9),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../config/firebase_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,6 +34,22 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final email = _emailController.text.trim();
       final password = _passwordController.text;
+
+      // Chỉ cho phép tài khoản Admin trong FirebaseConfig đăng nhập
+      if (email != FirebaseConfig.adminEmail || password != FirebaseConfig.adminPassword) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tài khoản hoặc mật khẩu không chính xác hoặc không có quyền truy cập Admin.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
 
       // Đăng nhập bằng Firebase Auth
       await FirebaseAuth.instance.signInWithEmailAndPassword(
