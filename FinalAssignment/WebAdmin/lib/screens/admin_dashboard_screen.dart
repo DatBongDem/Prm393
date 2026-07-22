@@ -1504,22 +1504,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildCampaignsTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth > 900) {
+        final isLarge = constraints.maxWidth > 1000;
+        if (isLarge) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 4, child: _buildNotificationSenderFormCard()),
+              Expanded(
+                flex: 4,
+                child: Column(
+                  children: [
+                    _buildNotificationSenderFormCard(),
+                    const SizedBox(height: 24),
+                    _buildTemplateManagerCard(),
+                  ],
+                ),
+              ),
               const SizedBox(width: 24),
-              Expanded(flex: 5, child: _buildCampaignsHistoryCard()),
+              Expanded(
+                flex: 5,
+                child: _buildCampaignsHistoryCard(),
+              ),
             ],
           );
         } else {
-          return Column(
-            children: [
-              _buildNotificationSenderFormCard(),
-              const SizedBox(height: 24),
-              _buildCampaignsHistoryCard(),
-            ],
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildNotificationSenderFormCard(),
+                const SizedBox(height: 24),
+                _buildTemplateManagerCard(),
+                const SizedBox(height: 24),
+                _buildCampaignsHistoryCard(),
+              ],
+            ),
           );
         }
       },
@@ -1707,6 +1724,272 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
+  void _showTemplateDialog({DocumentSnapshot? doc}) {
+    final titleController = TextEditingController(text: doc != null ? doc['title'] : '');
+    final bodyController = TextEditingController(text: doc != null ? doc['body'] : '');
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            doc == null ? 'Thêm thông báo mẫu mới' : 'Sửa thông báo mẫu',
+            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: titleController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Tiêu đề mẫu',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.white24),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    validator: (val) => val == null || val.trim().isEmpty ? 'Nhập tiêu đề mẫu' : null,
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: bodyController,
+                    maxLines: 4,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Nội dung mẫu',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.white24),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    validator: (val) => val == null || val.trim().isEmpty ? 'Nhập nội dung mẫu' : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Hủy', style: GoogleFonts.outfit(color: Colors.white60)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent),
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final title = titleController.text.trim();
+                final body = bodyController.text.trim();
+
+                if (doc == null) {
+                  await FirebaseFirestore.instance.collection('notification_templates').add({
+                    'title': title,
+                    'body': body,
+                    'createdAt': FieldValue.serverTimestamp(),
+                  });
+                } else {
+                  await FirebaseFirestore.instance.collection('notification_templates').doc(doc.id).update({
+                    'title': title,
+                    'body': body,
+                  });
+                }
+                if (mounted) Navigator.pop(context);
+              },
+              child: Text(doc == null ? 'Tạo mẫu' : 'Cập nhật', style: GoogleFonts.outfit(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTemplateManagerCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF334155)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Danh sách Thông báo Mẫu',
+                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tạo sẵn nội dung để áp dụng nhanh khi gửi',
+                      style: GoogleFonts.outfit(color: Colors.white60, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.pinkAccent.withOpacity(0.2),
+                  foregroundColor: Colors.pinkAccent,
+                  side: const BorderSide(color: Colors.pinkAccent),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => _showTemplateDialog(),
+                icon: const Icon(Icons.add, size: 16),
+                label: Text('Tạo Mẫu', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+            ],
+          ),
+          const Divider(color: Color(0xFF334155), height: 30),
+          
+          // Stream list templates
+          SizedBox(
+            height: 250,
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('notification_templates').orderBy('createdAt', descending: true).snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final docs = snapshot.data!.docs;
+                if (docs.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Chưa có thông báo mẫu nào.',
+                      style: GoogleFonts.outfit(color: Colors.white38, fontSize: 13),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final title = doc['title'] ?? '';
+                    final body = doc['body'] ?? '';
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF334155)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  body,
+                                  style: GoogleFonts.outfit(color: Colors.white60, fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          
+                          // Nút áp dụng nhanh
+                          IconButton(
+                            tooltip: 'Áp dụng nhanh',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.playlist_add_check, color: Colors.greenAccent, size: 22),
+                            onPressed: () {
+                              setState(() {
+                                _notiTitleController.text = title;
+                                _notiBodyController.text = body;
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Đã điền thông báo mẫu vào Form gửi!'),
+                                  backgroundColor: Colors.pinkAccent,
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          
+                          // Nút sửa
+                          IconButton(
+                            tooltip: 'Chỉnh sửa',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 18),
+                            onPressed: () => _showTemplateDialog(doc: doc),
+                          ),
+                          const SizedBox(width: 8),
+                          
+                          // Nút xóa
+                          IconButton(
+                            tooltip: 'Xóa mẫu',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.delete, color: Colors.redAccent, size: 18),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  title: Text('Xác nhận xóa', style: GoogleFonts.outfit(color: Colors.white)),
+                                  content: Text('Bạn có chắc chắn muốn xóa mẫu này?', style: GoogleFonts.outfit(color: Colors.white70)),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+                                    TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Xóa', style: TextStyle(color: Colors.redAccent))),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                await FirebaseFirestore.instance.collection('notification_templates').doc(doc.id).delete();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCampaignsHistoryCard() {
     return Container(
       height: 500,
@@ -1813,10 +2096,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _buildCampaignStatCol('SENDS', sent.toString(), 'Gửi từ Firebase', Colors.white),
-                              _buildCampaignStatCol('RECEIVED', received.toString(), '${(receivedPct * 100).toStringAsFixed(1)}% tỷ lệ', Colors.blueAccent),
-                              _buildCampaignStatCol('IMPRESSIONS', impressions.toString(), '${(impressionsPct * 100).toStringAsFixed(1)}% hiển thị', Colors.greenAccent),
-                              _buildCampaignStatCol('OPEN COUNT', opened.toString(), '${(openedPct * 100).toStringAsFixed(1)}% mở', Colors.orangeAccent),
+                              _buildCampaignStatCol('SỐ GỬI', sent.toString(), 'Firebase đã gửi', Colors.white),
+                              _buildCampaignStatCol('SỐ NHẬN', received.toString(), '${(receivedPct * 100).toStringAsFixed(1)}% tỷ lệ', Colors.blueAccent),
+                              _buildCampaignStatCol('SỐ ĐÃ XEM', impressions.toString(), '${(impressionsPct * 100).toStringAsFixed(1)}% hiển thị', Colors.greenAccent),
+                              _buildCampaignStatCol('SỐ ĐỌC (MỞ)', opened.toString(), '${(openedPct * 100).toStringAsFixed(1)}% tỷ lệ', Colors.orangeAccent),
                             ],
                           ),
                           const SizedBox(height: 12),
