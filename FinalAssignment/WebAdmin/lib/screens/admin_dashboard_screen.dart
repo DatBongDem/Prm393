@@ -127,7 +127,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.admin_panel_settings, color: Colors.blueAccent, size: 36),
+                  const Icon(Icons.admin_panel_settings, color: Colors.pinkAccent, size: 36),
                   const SizedBox(width: 12),
                   Text(
                     'WEB ADMIN',
@@ -163,11 +163,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 child: ListTile(
                   selected: isSelected,
-                  selectedTileColor: Colors.blueAccent.withOpacity(0.15),
+                  selectedTileColor: Colors.pinkAccent.withOpacity(0.15),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   leading: Icon(
                     item['icon'] as IconData,
-                    color: isSelected ? Colors.blueAccent : Colors.white60,
+                    color: isSelected ? Colors.pinkAccent : Colors.white60,
                   ),
                   title: Text(
                     item['title'] as String,
@@ -324,7 +324,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               'Người dùng đăng ký',
                               totalUsers.toString(),
                               Icons.people,
-                              Colors.blueAccent,
+                              Colors.pinkAccent,
                             ),
                             _buildStatCard(
                               'Báo cáo PDF đã xuất',
@@ -487,7 +487,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           height: barHeight,
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [Colors.cyan, Colors.blueAccent],
+                              colors: [Colors.pinkAccent, Colors.purpleAccent],
                               begin: Alignment.bottomCenter,
                               end: Alignment.topCenter,
                             ),
@@ -729,12 +729,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             DataCell(Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.blueAccent.withOpacity(0.15),
+                                color: Colors.pinkAccent.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 '${user['activeDays']} ngày',
-                                style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                                style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                             )),
                             DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white70))),
@@ -837,7 +837,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  icon: const Icon(Icons.open_in_new, color: Colors.blueAccent),
+                                  icon: const Icon(Icons.open_in_new, color: Colors.pinkAccent),
                                   tooltip: 'Mở / Xem PDF',
                                   onPressed: () async {
                                     if (pdfUrl.isNotEmpty) {
@@ -1032,13 +1032,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
                             DataCell(ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blueAccent.withOpacity(0.2),
-                                side: const BorderSide(color: Colors.blueAccent, width: 1),
+                                backgroundColor: Colors.pinkAccent.withOpacity(0.2),
+                                side: const BorderSide(color: Colors.pinkAccent, width: 1),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               ),
                               onPressed: () => _showBugDetailDialog(doc),
-                              child: const Text('Chi Tiết', style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                              child: const Text('Chi Tiết', style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold)),
                             )),
                           ],
                         );
@@ -1291,7 +1291,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+                  borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -1315,7 +1315,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+                  borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -1332,9 +1332,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: ElevatedButton.icon(
                 onPressed: _isSendingNotification ? null : _sendNotification,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
+                  backgroundColor: Colors.pinkAccent,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.blueAccent.withOpacity(0.5),
+                  disabledBackgroundColor: Colors.pinkAccent.withOpacity(0.5),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 icon: _isSendingNotification

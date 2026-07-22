@@ -122,7 +122,7 @@ class _MyAppState extends State<MyApp> {
       ],
       child: MaterialApp(
         scaffoldMessengerKey: MyApp.scaffoldMessengerKey,
-        title: 'Lab 3 Firebase App',
+        title: 'The News Thing',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,

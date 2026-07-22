@@ -120,9 +120,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: 70,
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.blueAccent,
+                        color: Colors.pinkAccent,
                         gradient: LinearGradient(
-                          colors: [Colors.cyan, Colors.blueAccent],
+                          colors: [Colors.pinkAccent, Colors.purpleAccent],
                         ),
                       ),
                       child: const Icon(
@@ -166,7 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+                          borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         errorBorder: OutlineInputBorder(
@@ -215,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+                          borderSide: const BorderSide(color: Colors.pinkAccent, width: 2),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         errorBorder: OutlineInputBorder(
@@ -245,9 +245,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
+                          backgroundColor: Colors.pinkAccent,
                           foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.blueAccent.withOpacity(0.5),
+                          disabledBackgroundColor: Colors.pinkAccent.withOpacity(0.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),

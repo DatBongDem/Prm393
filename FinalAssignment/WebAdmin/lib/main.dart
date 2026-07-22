@@ -23,13 +23,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PRM393 Web Admin Portal',
+      title: 'The News Thing Admin Portal',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F172A),
         colorScheme: const ColorScheme.dark(
-          primary: Colors.blueAccent,
-          secondary: Colors.cyanAccent,
+          primary: Colors.pinkAccent,
+          secondary: Colors.purpleAccent,
           background: Color(0xFF0F172A),
           surface: Color(0xFF1E293B),
         ),
@@ -41,7 +41,7 @@ class MyApp extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
               body: Center(
-                child: CircularProgressIndicator(color: Colors.blueAccent),
+                child: CircularProgressIndicator(color: Colors.pinkAccent),
               ),
             );
           }
