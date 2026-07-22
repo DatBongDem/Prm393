@@ -808,7 +808,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildNotificationCenter(bool isDark) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
+    return StreamBuilder<List<QueryDocumentSnapshot>>(
       stream: context.read<ProfileViewModel>().notificationsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -909,13 +909,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   separatorBuilder: (context, index) =>
                       const Divider(height: 16),
                   itemBuilder: (context, index) {
-                    final notif = docs[index];
+                    final doc = docs[index];
+                    final notif = doc.data() as Map<String, dynamic>;
                     final title = notif['title'] ?? '';
                     final body = notif['body'] ?? '';
-                    final date = notif['receivedAt'] as DateTime?;
+                    final timestamp = notif['receivedAt'] as Timestamp?;
 
-                    String timeStr = 'N/A';
-                    if (date != null) {
+                    String timeStr = 'Đang nhận...';
+                    if (timestamp != null) {
+                      final date = timestamp.toDate();
                       timeStr =
                           '${date.hour}:${date.minute.toString().padLeft(2, '0')} - ${date.day}/${date.month}/${date.year}';
                     }
@@ -984,7 +986,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           onPressed: () async {
                             await context
                                 .read<ProfileViewModel>()
-                                .deleteNotification(notif['id'] ?? '');
+                                .deleteNotification(doc.id);
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(

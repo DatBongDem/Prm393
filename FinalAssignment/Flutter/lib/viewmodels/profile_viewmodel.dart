@@ -38,46 +38,13 @@ class ProfileViewModel extends ChangeNotifier {
   Stream<List<QueryDocumentSnapshot>> get pdfReportsStream =>
       _firestoreService.getPdfReportsStream();
 
-  // Mock notifications in memory (no Firestore, no FCM)
-  static final List<Map<String, dynamic>> _mockNotifications = [
-    {
-      'id': 'notif_1',
-      'title': 'Chào mừng đến với The News Thing 🎉',
-      'body': 'Ứng dụng di động của bạn đã được thiết lập thành công. Hãy khám phá các bài báo khoa học và tạo nhật ký nghiên cứu ngay nhé!',
-      'receivedAt': DateTime.now().subtract(const Duration(hours: 4)),
-    },
-    {
-      'id': 'notif_2',
-      'title': 'Báo cáo PDF đã sẵn sàng 📊',
-      'body': 'Hệ thống đã hỗ trợ quản lý tài liệu PDF trên trang Web Admin. Bạn có thể xem hoặc xóa báo cáo PDF của mình bất cứ lúc nào.',
-      'receivedAt': DateTime.now().subtract(const Duration(hours: 2)),
-    },
-    {
-      'id': 'notif_3',
-      'title': 'Tính năng báo cáo lỗi (Bug Report) 🐞',
-      'body': 'Nếu gặp sự cố trong quá trình sử dụng, hãy truy cập phần Báo cáo lỗi ở trang cá nhân để gửi góp ý trực tiếp cho Admin.',
-      'receivedAt': DateTime.now().subtract(const Duration(minutes: 30)),
-    },
-  ];
-
-  static final StreamController<List<Map<String, dynamic>>> _notifController =
-      StreamController<List<Map<String, dynamic>>>.broadcast();
-
   /// Stream danh sách thông báo đã nhận của user hiện tại.
-  Stream<List<Map<String, dynamic>>> get notificationsStream {
-    Future.microtask(() => _notifController.add(List.from(_mockNotifications)));
-    return _notifController.stream;
-  }
+  Stream<List<QueryDocumentSnapshot>> get notificationsStream =>
+      _firestoreService.getNotificationsStream();
 
-  /// Thêm một thông báo mới vào danh sách mock cục bộ
+  /// Thêm một thông báo mới vào Firestore
   static void addMockNotification(String title, String body) {
-    _mockNotifications.insert(0, {
-      'id': 'notif_${DateTime.now().millisecondsSinceEpoch}',
-      'title': title,
-      'body': body,
-      'receivedAt': DateTime.now(),
-    });
-    _notifController.add(List.from(_mockNotifications));
+    FirestoreService().addNotification(title, body);
   }
 
   /// Xuất báo cáo PDF cho [topic] rồi tải lên Firebase Storage và lưu
@@ -134,16 +101,12 @@ class ProfileViewModel extends ChangeNotifier {
       _firestoreService.deletePdfReport(docId, pdfUrl);
 
   /// Xóa một thông báo đã nhận.
-  Future<void> deleteNotification(String docId) async {
-    _mockNotifications.removeWhere((item) => item['id'] == docId);
-    _notifController.add(List.from(_mockNotifications));
-  }
+  Future<void> deleteNotification(String docId) =>
+      _firestoreService.deleteNotification(docId);
 
   /// Xóa toàn bộ thông báo của user hiện tại.
-  Future<void> clearAllNotifications() async {
-    _mockNotifications.clear();
-    _notifController.add(List.from(_mockNotifications));
-  }
+  Future<void> clearAllNotifications() =>
+      _firestoreService.clearAllNotifications();
 
   /// Đăng xuất: ghi sự kiện Analytics, hủy đăng ký topic FCM rồi signOut.
   Future<void> signOut() async {

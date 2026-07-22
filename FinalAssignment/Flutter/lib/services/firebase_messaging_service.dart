@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../main.dart';
 import 'firestore_service.dart';
@@ -22,10 +23,49 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       message.notification!.body ?? '',
     );
   }
+
+  // Tăng số lượng nhận cho chiến dịch thực tế
+  await FirebaseMessagingService._incrementReceivedCount(message.data);
 }
 
 class FirebaseMessagingService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+
+  // Helper tăng số lượng Nhận thực tế trên Firestore của Campaign
+  static Future<void> _incrementReceivedCount(Map<String, dynamic> data) async {
+    final campaignId = data['campaignId'] as String?;
+    if (campaignId != null && campaignId.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('campaigns')
+            .doc(campaignId)
+            .update({
+          'receivedCount': FieldValue.increment(1),
+        });
+        print('FCM Tracker: Đã tăng receivedCount cho campaign $campaignId');
+      } catch (e) {
+        print('FCM Tracker: Lỗi tăng receivedCount: $e');
+      }
+    }
+  }
+
+  // Helper tăng số lượng Xem thực tế trên Firestore của Campaign
+  static Future<void> _incrementViewedCount(Map<String, dynamic> data) async {
+    final campaignId = data['campaignId'] as String?;
+    if (campaignId != null && campaignId.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('campaigns')
+            .doc(campaignId)
+            .update({
+          'viewedCount': FieldValue.increment(1),
+        });
+        print('FCM Tracker: Đã tăng viewedCount cho campaign $campaignId');
+      } catch (e) {
+        print('FCM Tracker: Lỗi tăng viewedCount: $e');
+      }
+    }
+  }
 
   // Luu lich su cac thong bao FCM nhan duoc trong phien chay hien tai.
   static final List<Map<String, String>> notificationHistory =
@@ -90,6 +130,9 @@ class FirebaseMessagingService {
 
       // 2. Lưu thông báo vào bộ nhớ RAM (tương thích ngược nếu có widget lắng nghe)
       addNotification(title, body);
+
+      // 3. Tăng số lượng nhận cho chiến dịch thực tế
+      _incrementReceivedCount(message.data);
       
       // Hiển thị SnackBar nổi trực quan thông qua GlobalKey
       MyApp.scaffoldMessengerKey.currentState?.showSnackBar(
@@ -147,6 +190,9 @@ class FirebaseMessagingService {
 
       // 2. Lưu thông báo vào bộ nhớ RAM
       addNotification(title, body);
+
+      // 3. Tăng số lượng xem/mở cho chiến dịch thực tế
+      _incrementViewedCount(message.data);
     });
 
     // 6. Xử lý trường hợp app đã bị tắt hẳn (Terminated) và được mở thông qua click vào thông báo
@@ -161,6 +207,9 @@ class FirebaseMessagingService {
 
       // 2. Lưu thông báo vào bộ nhớ RAM
       addNotification(title, body);
+
+      // 3. Tăng số lượng xem/mở cho chiến dịch thực tế
+      _incrementViewedCount(initialMessage.data);
     }
   }
 }

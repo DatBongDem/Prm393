@@ -40,7 +40,8 @@ class FcmSenderService {
   }
 
   // Gửi thông báo tùy chỉnh qua FCM HTTP v1 API tới topic reminder_journal
-  static Future<bool> sendCustomNotification(String title, String body, {String topic = 'reminder_journal'}) async {
+  // Gửi thông báo tùy chỉnh qua FCM HTTP v1 API tới topic reminder_journal kèm theo data payload
+  static Future<bool> sendCustomNotification(String title, String body, {String topic = 'reminder_journal', String? campaignId}) async {
     final token = await _getAccessToken();
     if (token == null) {
       print('FCM Sender (v1): Không thể gửi thông báo vì không có Access Token.');
@@ -55,27 +56,35 @@ class FcmSenderService {
       'Authorization': 'Bearer $token',
     };
 
-    final jsonBody = jsonEncode({
-      'message': {
-        'topic': topic,
+    final Map<String, dynamic> messagePayload = {
+      'topic': topic,
+      'notification': {
+        'title': title,
+        'body': body,
+      },
+      'webpush': {
         'notification': {
           'title': title,
           'body': body,
-        },
-        'webpush': {
-          'notification': {
-            'title': title,
-            'body': body,
-            'icon': 'favicon.png',
-          }
-        },
-        'android': {
-          'notification': {
-            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-            'sound': 'default',
-          }
+          'icon': 'favicon.png',
+        }
+      },
+      'android': {
+        'notification': {
+          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+          'sound': 'default',
         }
       }
+    };
+
+    if (campaignId != null) {
+      messagePayload['data'] = {
+        'campaignId': campaignId,
+      };
+    }
+
+    final jsonBody = jsonEncode({
+      'message': messagePayload
     });
 
     try {
