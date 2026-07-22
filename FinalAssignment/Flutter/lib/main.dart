@@ -10,7 +10,6 @@ import 'screens/main_navigation_screen.dart';
 import 'services/firebase_analytics_service.dart';
 import 'services/firebase_messaging_service.dart';
 import 'services/firebase_remote_config_service.dart';
-import 'services/firestore_service.dart';
 import 'viewmodels/analytics_provider.dart';
 import 'viewmodels/auth_viewmodel.dart';
 import 'viewmodels/profile_viewmodel.dart';
@@ -32,28 +31,15 @@ void main() async {
 
     final originalFlutterOnError = FlutterError.onError;
     final originalPlatformOnError = PlatformDispatcher.instance.onError;
-    final firestoreService = FirestoreService();
 
     FlutterError.onError = (errorDetails) {
       originalFlutterOnError?.call(errorDetails);
       crashlytics.recordFlutterFatalError(errorDetails);
-      firestoreService.reportBug(
-        title: 'Fatal Error: ${errorDetails.exception.toString()}',
-        description: 'Stacktrace:\n${errorDetails.stack.toString()}',
-        deviceInfo: 'Automatic Crash Report',
-        type: 'Crash (Fatal)',
-      ).catchError((e) => print('Lỗi gửi crash tự động lên Firestore: $e'));
     };
     // Bắt các lỗi xảy ra bất đồng bộ bên ngoài luồng giao diện (Async/Background Errors)
     PlatformDispatcher.instance.onError = (error, stack) {
       originalPlatformOnError?.call(error, stack);
       crashlytics.recordError(error, stack, fatal: true);
-      firestoreService.reportBug(
-        title: 'Non-Fatal/Async Error: ${error.toString()}',
-        description: 'Stacktrace:\n${stack.toString()}',
-        deviceInfo: 'Automatic Crash Report',
-        type: 'Crash (Non-Fatal)',
-      ).catchError((e) => print('Lỗi gửi crash tự động lên Firestore: $e'));
       return true;
     };
   }

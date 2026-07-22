@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/fcm_sender_service.dart';
+import '../services/crashlytics_service.dart';
 
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -30,8 +31,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _notiTitleController = TextEditingController();
   final _notiBodyController = TextEditingController();
   bool _isSendingNotification = false;
+  Future<List<CrashlyticsIssue>>? _crashlyticsIssuesFuture;
 
-
+  @override
+  void initState() {
+    super.initState();
+    _crashlyticsIssuesFuture = CrashlyticsService.getCrashlyticsIssues();
+  }
 
   @override
   void dispose() {
@@ -926,424 +932,471 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             print('FStore Storage: Đã xóa file thành công.');
           } catch (e) {
             // Có thể lỗi CORS hoặc file đã bị xóa trước đó
-            print('Storage Delete Error (CORS/Not Found): $e');
-          }
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa tài liệu PDF thành công.'), backgroundColor: Colors.green),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi khi xóa: $e'), backgroundColor: Colors.redAccent),
-          );
-        }
-      }
-    }
-  }
-
-  // ==========================================
+   // ==========================================
   // TAB 4: BÁO CÁO BUG
   // ==========================================
   Widget _buildBugsTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('bugs').snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+      builder: (context, firestoreSnapshot) {
+        if (!firestoreSnapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snapshot.data!.docs;
+        final docs = firestoreSnapshot.data!.docs;
 
-        // 1. Tính toán thống kê từ Crashlytics và User Reports
-        int totalCrashes = 0;
-        int fatalCrashes = 0;
-        int userReports = 0;
-        int unresolvedBugs = 0;
+        return FutureBuilder<List<CrashlyticsIssue>>(
+          future: _crashlyticsIssuesFuture,
+          builder: (context, crashSnapshot) {
+            final crashIssues = crashSnapshot.data ?? [];
 
-        for (var doc in docs) {
-          final data = doc.data() as Map<String, dynamic>? ?? {};
-          final type = data['type']?.toString() ?? '';
-          final status = data['status']?.toString() ?? 'Mới';
+            // Gộp dữ liệu từ Firestore (User Report) và Crashlytics
+            final List<Map<String, dynamic>> allIssues = [];
 
-          if (type.contains('Crash')) {
-            totalCrashes++;
-            if (type.contains('Fatal')) {
-              fatalCrashes++;
+            // 1. Gộp User Reports (chỉ lấy loại 'User Report')
+            for (var doc in docs) {
+              final data = doc.data() as Map<String, dynamic>? ?? {};
+              final type = data['type']?.toString() ?? 'User Report';
+              final email = data['userEmail'] ?? 'anonymous';
+              final title = data['title'] ?? 'N/A';
+              final desc = data['description'] ?? 'N/A';
+              final deviceInfo = data['deviceInfo'] ?? 'N/A';
+              final status = data['status'] ?? 'Mới';
+              final timestamp = data['timestamp'] as Timestamp?;
+
+              allIssues.add({
+                'id': doc.id,
+                'source': type,
+                'email': email,
+                'title': title,
+                'description': desc,
+                'deviceInfo': deviceInfo,
+                'status': status,
+                'timestamp': timestamp?.toDate() ?? DateTime.now(),
+                'rawDoc': doc,
+                'rawCrash': null,
+              });
             }
-          } else if (type == 'User Report') {
-            userReports++;
-          }
 
-          if (status != 'Đã giải quyết') {
-            unresolvedBugs++;
-          }
-        }
+            // 2. Gộp Crashlytics Issues
+            for (var issue in crashIssues) {
+              allIssues.add({
+                'id': issue.id,
+                'source': issue.type == 'FATAL' ? 'Crash (Fatal)' : 'Crash (Non-Fatal)',
+                'email': 'system@crashlytics',
+                'title': issue.title,
+                'description': 'Subtitle: ${issue.subtitle}\nCrash count: ${issue.crashCount}\nDevice count: ${issue.deviceCount}',
+                'deviceInfo': 'Android/iOS Device via Firebase Crashlytics',
+                'status': issue.status == 'OPEN' ? 'Mới' : 'Đã giải quyết',
+                'timestamp': issue.timestamp,
+                'rawDoc': null,
+                'rawCrash': issue,
+              });
+            }
 
-        // 2. Lọc danh sách theo filter dropdown và search query
-        var filteredDocs = List<DocumentSnapshot>.from(docs);
+            // Tính toán thống kê từ danh sách đã gộp
+            int totalCrashes = 0;
+            int fatalCrashes = 0;
+            int userReports = 0;
+            int unresolvedBugs = 0;
 
-        // Lọc theo bộ lọc dropdown
-        if (_selectedBugFilter == 'Crashlytics') {
-          filteredDocs = filteredDocs.where((doc) {
-            final type = (doc.data() as Map<String, dynamic>?)?['type']?.toString() ?? '';
-            return type.contains('Crash');
-          }).toList();
-        } else if (_selectedBugFilter == 'Fatal') {
-          filteredDocs = filteredDocs.where((doc) {
-            final type = (doc.data() as Map<String, dynamic>?)?['type']?.toString() ?? '';
-            return type == 'Crash (Fatal)';
-          }).toList();
-        } else if (_selectedBugFilter == 'UserReport') {
-          filteredDocs = filteredDocs.where((doc) {
-            final type = (doc.data() as Map<String, dynamic>?)?['type']?.toString() ?? '';
-            return type == 'User Report';
-          }).toList();
-        }
+            for (var item in allIssues) {
+              final source = item['source'] as String;
+              final status = item['status'] as String;
 
-        // Lọc theo search query
-        final query = _bugSearchController.text.trim().toLowerCase();
-        if (query.isNotEmpty) {
-          filteredDocs = filteredDocs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>?;
-            final title = data?['title']?.toString().toLowerCase() ?? '';
-            final desc = data?['description']?.toString().toLowerCase() ?? '';
-            final email = data?['userEmail']?.toString().toLowerCase() ?? '';
-            return title.contains(query) || desc.contains(query) || email.contains(query);
-          }).toList();
-        }
+              if (source.contains('Crash')) {
+                totalCrashes++;
+                if (source.contains('Fatal')) {
+                  fatalCrashes++;
+                }
+              } else if (source == 'User Report') {
+                userReports++;
+              }
 
-        // Sắp xếp theo timestamp giảm dần
-        filteredDocs.sort((a, b) {
-          final aTime = (a.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
-          final bTime = (b.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
-          if (aTime == null) return 1;
-          if (bTime == null) return -1;
-          return bTime.compareTo(aTime);
-        });
+              if (status != 'Đã giải quyết') {
+                unresolvedBugs++;
+              }
+            }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildTabHeader(
-              'Báo cáo Bug & Crashlytics',
-              'Giám sát lỗi Crashlytics tự động từ thiết bị và phản hồi từ người dùng',
-            ),
-            const SizedBox(height: 20),
+            // Lọc danh sách theo filter dropdown và search query
+            var filteredIssues = List<Map<String, dynamic>>.from(allIssues);
 
-            // Hàng Thẻ Thống Kê Mini
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final crossAxisCount = constraints.maxWidth > 900 ? 4 : (constraints.maxWidth > 600 ? 2 : 1);
-                return GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: constraints.maxWidth > 900 ? 2.5 : 3.0,
+            // Lọc theo bộ lọc dropdown
+            if (_selectedBugFilter == 'Crashlytics') {
+              filteredIssues = filteredIssues.where((item) => item['source'].toString().contains('Crash')).toList();
+            } else if (_selectedBugFilter == 'Fatal') {
+              filteredIssues = filteredIssues.where((item) => item['source'].toString() == 'Crash (Fatal)').toList();
+            } else if (_selectedBugFilter == 'UserReport') {
+              filteredIssues = filteredIssues.where((item) => item['source'].toString() == 'User Report').toList();
+            }
+
+            // Lọc theo search query
+            final query = _bugSearchController.text.trim().toLowerCase();
+            if (query.isNotEmpty) {
+              filteredIssues = filteredIssues.where((item) {
+                final title = item['title'].toString().toLowerCase();
+                final desc = item['description'].toString().toLowerCase();
+                final email = item['email'].toString().toLowerCase();
+                return title.contains(query) || desc.contains(query) || email.contains(query);
+              }).toList();
+            }
+
+            // Sắp xếp theo thời gian giảm dần
+            filteredIssues.sort((a, b) {
+              final aTime = a['timestamp'] as DateTime;
+              final bTime = b['timestamp'] as DateTime;
+              return bTime.compareTo(aTime);
+            });
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildMiniStatCard(
-                      'TỔNG SỐ CRASH',
-                      totalCrashes.toString(),
-                      'Lỗi hệ thống tự bắt',
-                      Icons.offline_bolt,
-                      Colors.orangeAccent,
+                    _buildTabHeader(
+                      'Báo cáo Bug & Crashlytics',
+                      'Giám sát lỗi Crashlytics tự động từ thiết bị và phản hồi từ người dùng',
                     ),
-                    _buildMiniStatCard(
-                      'CRASH NGHIÊM TRỌNG (FATAL)',
-                      fatalCrashes.toString(),
-                      'Làm sập ứng dụng',
-                      Icons.dangerous,
-                      Colors.redAccent,
-                    ),
-                    _buildMiniStatCard(
-                      'BÁO CÁO NGƯỜI DÙNG',
-                      userReports.toString(),
-                      'Phản hồi thủ công',
-                      Icons.rate_review,
-                      Colors.blueAccent,
-                    ),
-                    _buildMiniStatCard(
-                      'BUG CHƯA XỬ LÝ',
-                      unresolvedBugs.toString(),
-                      'Cần kiểm tra lại',
-                      Icons.bug_report,
-                      Colors.yellowAccent,
+                    // Nút làm mới dữ liệu Crashlytics thủ công
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.pinkAccent.withOpacity(0.15),
+                        foregroundColor: Colors.pinkAccent,
+                        side: const BorderSide(color: Colors.pinkAccent),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _crashlyticsIssuesFuture = CrashlyticsService.getCrashlyticsIssues();
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Đang tải lại dữ liệu Crashlytics...'), duration: Duration(seconds: 1)),
+                        );
+                      },
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: Text('Làm mới Crashlytics', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
                     ),
                   ],
-                );
-              },
-            ),
-            const SizedBox(height: 24),
+                ),
+                const SizedBox(height: 20),
 
-            // Thanh Bộ Lọc & Tìm Kiếm
-            Row(
-              children: [
+                // Hàng Thẻ Thống Kê Mini
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final crossAxisCount = constraints.maxWidth > 900 ? 4 : (constraints.maxWidth > 600 ? 2 : 1);
+                    return GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: constraints.maxWidth > 900 ? 2.5 : 3.0,
+                      children: [
+                        _buildMiniStatCard(
+                          'TỔNG SỐ CRASH',
+                          totalCrashes.toString(),
+                          'Lỗi từ Firebase Crashlytics',
+                          Icons.offline_bolt,
+                          Colors.orangeAccent,
+                        ),
+                        _buildMiniStatCard(
+                          'CRASH NGHIÊM TRỌNG (FATAL)',
+                          fatalCrashes.toString(),
+                          'Làm sập ứng dụng',
+                          Icons.dangerous,
+                          Colors.redAccent,
+                        ),
+                        _buildMiniStatCard(
+                          'BÁO CÁO NGƯỜI DÙNG',
+                          userReports.toString(),
+                          'Lưu tại Firestore',
+                          Icons.rate_review,
+                          Colors.blueAccent,
+                        ),
+                        _buildMiniStatCard(
+                          'BUG CHƯA XỬ LÝ',
+                          unresolvedBugs.toString(),
+                          'Cần kiểm tra lại',
+                          Icons.bug_report,
+                          Colors.yellowAccent,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // Thanh Bộ Lọc & Tìm Kiếm
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSearchBar(
+                        _bugSearchController,
+                        'Tìm kiếm theo mô tả lỗi hoặc email...',
+                        () => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF334155)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedBugFilter,
+                          dropdownColor: const Color(0xFF1E293B),
+                          icon: const Icon(Icons.filter_alt, color: Colors.pinkAccent),
+                          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w500),
+                          items: const [
+                            DropdownMenuItem(value: 'All', child: Text('Tất cả lỗi')),
+                            DropdownMenuItem(value: 'Crashlytics', child: Text('Chỉ lỗi Crashlytics')),
+                            DropdownMenuItem(value: 'Fatal', child: Text('Chỉ lỗi sập app (Fatal)')),
+                            DropdownMenuItem(value: 'UserReport', child: Text('Chỉ báo cáo người dùng')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedBugFilter = val;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Bảng Danh Sách Lỗi
                 Expanded(
-                  child: _buildSearchBar(
-                    _bugSearchController,
-                    'Tìm kiếm theo mô tả lỗi hoặc email...',
-                    () => setState(() {}),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF334155)),
+                    ),
+                    child: filteredIssues.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Không tìm thấy báo cáo lỗi nào phù hợp.',
+                              style: GoogleFonts.outfit(color: Colors.white60),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.vertical,
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                    child: DataTable(
+                                      columnSpacing: 40,
+                                      columns: [
+                                        DataColumn(
+                                          label: Text(
+                                            'Nguồn / Loại Lỗi',
+                                            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Người Gửi / Email',
+                                            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Tiêu Đề / Sự Cố',
+                                            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Trạng Thái',
+                                            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Thời Gian',
+                                            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Hành Động',
+                                            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ],
+                                      rows: filteredIssues.map((item) {
+                                        final source = item['source'] as String;
+                                        final email = item['email'] as String;
+                                        final title = item['title'] as String;
+                                        final status = item['status'] as String;
+                                        final dt = item['timestamp'] as DateTime;
+                                        final formattedDate = DateFormat('HH:mm dd/MM/yyyy').format(dt);
+
+                                        Color statusColor = Colors.orangeAccent;
+                                        if (status == 'Đang xử lý') statusColor = Colors.cyanAccent;
+                                        if (status == 'Đã giải quyết') statusColor = Colors.greenAccent;
+
+                                        // Badge thiết kế nguồn lỗi chuyên nghiệp
+                                        Widget sourceBadge;
+                                        if (source.contains('Fatal')) {
+                                          sourceBadge = Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.redAccent.withOpacity(0.12),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.flash_on, color: Colors.redAccent, size: 13),
+                                                SizedBox(width: 4),
+                                                Text(
+                                                  'Fatal Crashlytics',
+                                                  style: TextStyle(
+                                                    color: Colors.redAccent,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        } else if (source.contains('Crash')) {
+                                          sourceBadge = Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orangeAccent.withOpacity(0.12),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.bug_report, color: Colors.orangeAccent, size: 13),
+                                                SizedBox(width: 4),
+                                                Text(
+                                                  'Crashlytics',
+                                                  style: TextStyle(
+                                                    color: Colors.orangeAccent,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        } else {
+                                          sourceBadge = Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.blueAccent.withOpacity(0.12),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.person, color: Colors.blueAccent, size: 13),
+                                                SizedBox(width: 4),
+                                                Text(
+                                                  'User Report',
+                                                  style: TextStyle(
+                                                    color: Colors.blueAccent,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
+
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(sourceBadge),
+                                            DataCell(Text(email, style: const TextStyle(color: Colors.white70))),
+                                            DataCell(Text(
+                                              title.length > 30 ? '${title.substring(0, 30)}...' : title,
+                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                                            )),
+                                            DataCell(Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: statusColor.withOpacity(0.15),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child:
+                                                  Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                                            )),
+                                            DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
+                                            DataCell(ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.pinkAccent.withOpacity(0.2),
+                                                side: const BorderSide(color: Colors.pinkAccent, width: 1),
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                              ),
+                                              onPressed: () => _showBugDetailDialog(item),
+                                              child: const Text(
+                                                'Chi Tiết',
+                                                style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold),
+                                              ),
+                                            )),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF334155)),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedBugFilter,
-                      dropdownColor: const Color(0xFF1E293B),
-                      icon: const Icon(Icons.filter_alt, color: Colors.pinkAccent),
-                      style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w500),
-                      items: const [
-                        DropdownMenuItem(value: 'All', child: Text('Tất cả lỗi')),
-                        DropdownMenuItem(value: 'Crashlytics', child: Text('Chỉ lỗi Crashlytics')),
-                        DropdownMenuItem(value: 'Fatal', child: Text('Chỉ lỗi sập app (Fatal)')),
-                        DropdownMenuItem(value: 'UserReport', child: Text('Chỉ báo cáo người dùng')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _selectedBugFilter = val;
-                          });
-                        }
-                      },
-                    ),
+                // Chú thích nhỏ về API Crashlytics
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0, left: 4.0),
+                  child: Text(
+                    'Lưu ý: Lỗi Crashlytics được đồng bộ hóa từ Firebase Crashlytics API. Để xem realtime, hãy kích hoạt API này trên GCP Console.',
+                    style: GoogleFonts.outfit(color: Colors.white38, fontSize: 11, fontStyle: FontStyle.italic),
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-
-            // Bảng Danh Sách Lỗi
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF334155)),
-                ),
-                child: filteredDocs.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Không tìm thấy báo cáo lỗi nào phù hợp.',
-                          style: GoogleFonts.outfit(color: Colors.white60),
-                        ),
-                      )
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          return SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                                child: DataTable(
-                                  columnSpacing: 40,
-                                  columns: [
-                                    DataColumn(
-                                      label: Text(
-                                        'Nguồn / Loại Lỗi',
-                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Người Gửi / Email',
-                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Tiêu Đề / Sự Cố',
-                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Trạng Thái',
-                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Thời Gian',
-                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Hành Động',
-                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ],
-                                  rows: filteredDocs.map((doc) {
-                                    final data = doc.data() as Map<String, dynamic>? ?? {};
-                                    final type = data['type'] ?? 'User Report';
-                                    final email = data['userEmail'] ?? 'anonymous';
-                                    final title = data['title'] ?? 'N/A';
-                                    final status = data['status'] ?? 'Mới';
-                                    final timestamp = data['timestamp'] as Timestamp?;
-                                    final formattedDate = timestamp != null
-                                        ? DateFormat('HH:mm dd/MM/yyyy').format(timestamp.toDate())
-                                        : 'N/A';
-
-                                    Color statusColor = Colors.orangeAccent;
-                                    if (status == 'Đang xử lý') statusColor = Colors.cyanAccent;
-                                    if (status == 'Đã giải quyết') statusColor = Colors.greenAccent;
-
-                                    // Badge thiết kế nguồn lỗi chuyên nghiệp
-                                    Widget sourceBadge;
-                                    if (type.toString().contains('Fatal')) {
-                                      sourceBadge = Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.redAccent.withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-                                        ),
-                                        child: const Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.flash_on, color: Colors.redAccent, size: 13),
-                                            SizedBox(width: 4),
-                                            Text(
-                                              'Fatal Crashlytics',
-                                              style: TextStyle(
-                                                color: Colors.redAccent,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    } else if (type.toString().contains('Crash')) {
-                                      sourceBadge = Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orangeAccent.withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
-                                        ),
-                                        child: const Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.bug_report, color: Colors.orangeAccent, size: 13),
-                                            SizedBox(width: 4),
-                                            Text(
-                                              'Crashlytics',
-                                              style: TextStyle(
-                                                color: Colors.orangeAccent,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    } else {
-                                      sourceBadge = Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blueAccent.withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
-                                        ),
-                                        child: const Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.person, color: Colors.blueAccent, size: 13),
-                                            SizedBox(width: 4),
-                                            Text(
-                                              'User Report',
-                                              style: TextStyle(
-                                                color: Colors.blueAccent,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }
-
-                                    return DataRow(
-                                      cells: [
-                                        DataCell(sourceBadge),
-                                        DataCell(Text(email, style: const TextStyle(color: Colors.white70))),
-                                        DataCell(Text(
-                                          title.length > 30 ? '${title.substring(0, 30)}...' : title,
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                                        )),
-                                        DataCell(Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: statusColor.withOpacity(0.15),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child:
-                                              Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
-                                        )),
-                                        DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
-                                        DataCell(ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.pinkAccent.withOpacity(0.2),
-                                            side: const BorderSide(color: Colors.pinkAccent, width: 1),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                          ),
-                                          onPressed: () => _showBugDetailDialog(doc),
-                                          child: const Text(
-                                            'Chi Tiết',
-                                            style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold),
-                                          ),
-                                        )),
-                                      ],
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      )
-              ),
-            ),
-          ],
+            );
+          },
         );
       },
     );
   }
 
   // Hộp thoại xem chi tiết Bug và cập nhật trạng thái
-  void _showBugDetailDialog(DocumentSnapshot doc) {
+  void _showBugDetailDialog(Map<String, dynamic> item) {
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final data = doc.data() as Map<String, dynamic>? ?? {};
-            final type = data['type'] ?? 'User Report';
-            final email = data['userEmail'] ?? 'anonymous';
-            final title = data['title'] ?? 'N/A';
-            final description = data['description'] ?? '';
-            final deviceInfo = data['deviceInfo'] ?? 'N/A';
-            final status = data['status'] ?? 'Mới';
-            final timestamp = data['timestamp'] as Timestamp?;
-            final formattedDate = timestamp != null
-                ? DateFormat('HH:mm:ss dd/MM/yyyy').format(timestamp.toDate())
-                : 'N/A';
+            final source = item['source'] as String;
+            final email = item['email'] as String;
+            final title = item['title'] as String;
+            final description = item['description'] as String;
+            final deviceInfo = item['deviceInfo'] as String;
+            final status = item['status'] as String;
+            final dt = item['timestamp'] as DateTime;
+            final formattedDate = DateFormat('HH:mm:ss dd/MM/yyyy').format(dt);
+            final rawDoc = item['rawDoc'] as DocumentSnapshot?;
 
             return AlertDialog(
               backgroundColor: const Color(0xFF1E293B),
@@ -1366,9 +1419,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildDetailRow('Loại báo cáo:', type, isBoldValue: true),
+                      _buildDetailRow('Nguồn lỗi:', source, isBoldValue: true),
                       const SizedBox(height: 10),
-                      _buildDetailRow('Người gửi:', email),
+                      _buildDetailRow('Người gửi / Email:', email),
                       const SizedBox(height: 10),
                       _buildDetailRow('Thiết bị:', deviceInfo),
                       const SizedBox(height: 10),
@@ -1387,7 +1440,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'Mô tả chi tiết / Stack Trace:',
+                        'Mô tả chi tiết / Stack Trace / Thông số:',
                         style: GoogleFonts.outfit(color: Colors.white60, fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       const SizedBox(height: 8),
@@ -1405,13 +1458,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      Text(
-                        'Cập nhật trạng thái xử lý:',
-                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      
+                      // Chỉ hiện phần cập nhật trạng thái nếu đây là lỗi Firestore (User Report)
+                      if (rawDoc != null) ...[
+                        Text(
+                          'Cập nhật trạng thái xử lý:',
+                          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildStatusUpdateBtn(rawDoc.id, 'Mới', Colors.orangeAccent, status, setDialogState),
+                            _buildStatusUpdateBtn(rawDoc.id, 'Đang xử lý', Colors.cyanAccent, status, setDialogState),
+                            _buildStatusUpdateBtn(rawDoc.id, 'Đã giải quyết', Colors.greenAccent, status, setDialogState),
+                          ],
+                        ),
+                      ] else ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orangeAccent.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orangeAccent.withOpacity(0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, color: Colors.orangeAccent, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Sự cố Crashlytics này được tự động đồng bộ hóa từ hệ thống Google Cloud. Mọi thay đổi trạng thái cần được quản lý trực tiếp trên Firebase Console.',
+                                  style: GoogleFonts.outfit(color: Colors.white70, fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Đóng', style: GoogleFonts.outfit(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }inAxisAlignment.spaceEvenly,
                         children: [
                           _buildStatusUpdateBtn(doc.id, 'Mới', Colors.orangeAccent, status, setDialogState),
                           _buildStatusUpdateBtn(doc.id, 'Đang xử lý', Colors.cyanAccent, status, setDialogState),
