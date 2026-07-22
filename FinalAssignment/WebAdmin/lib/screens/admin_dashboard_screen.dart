@@ -23,6 +23,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _userSearchController = TextEditingController();
   final _pdfSearchController = TextEditingController();
   final _bugSearchController = TextEditingController();
+  String _selectedBugFilter = 'All';
 
   // Notification form controllers
   final _notificationFormKey = GlobalKey<FormState>();
@@ -934,126 +935,373 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // TAB 4: BÁO CÁO BUG
   // ==========================================
   Widget _buildBugsTab() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildTabHeader('Báo cáo Bug & Crash', 'Giám sát và cập nhật trạng thái các lỗi tự động hoặc do người dùng gửi'),
-        const SizedBox(height: 24),
-        
-        _buildSearchBar(_bugSearchController, 'Tìm kiếm theo mô tả lỗi hoặc email...', () => setState(() {})),
-        const SizedBox(height: 16),
-        
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF334155)),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('bugs').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs;
+
+        // 1. Tính toán thống kê từ Crashlytics và User Reports
+        int totalCrashes = 0;
+        int fatalCrashes = 0;
+        int userReports = 0;
+        int unresolvedBugs = 0;
+
+        for (var doc in docs) {
+          final data = doc.data() as Map<String, dynamic>? ?? {};
+          final type = data['type']?.toString() ?? '';
+          final status = data['status']?.toString() ?? 'Mới';
+
+          if (type.contains('Crash')) {
+            totalCrashes++;
+            if (type.contains('Fatal')) {
+              fatalCrashes++;
+            }
+          } else if (type == 'User Report') {
+            userReports++;
+          }
+
+          if (status != 'Đã giải quyết') {
+            unresolvedBugs++;
+          }
+        }
+
+        // 2. Lọc danh sách theo filter dropdown và search query
+        var filteredDocs = List<DocumentSnapshot>.from(docs);
+
+        // Lọc theo bộ lọc dropdown
+        if (_selectedBugFilter == 'Crashlytics') {
+          filteredDocs = filteredDocs.where((doc) {
+            final type = (doc.data() as Map<String, dynamic>?)?['type']?.toString() ?? '';
+            return type.contains('Crash');
+          }).toList();
+        } else if (_selectedBugFilter == 'Fatal') {
+          filteredDocs = filteredDocs.where((doc) {
+            final type = (doc.data() as Map<String, dynamic>?)?['type']?.toString() ?? '';
+            return type == 'Crash (Fatal)';
+          }).toList();
+        } else if (_selectedBugFilter == 'UserReport') {
+          filteredDocs = filteredDocs.where((doc) {
+            final type = (doc.data() as Map<String, dynamic>?)?['type']?.toString() ?? '';
+            return type == 'User Report';
+          }).toList();
+        }
+
+        // Lọc theo search query
+        final query = _bugSearchController.text.trim().toLowerCase();
+        if (query.isNotEmpty) {
+          filteredDocs = filteredDocs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>?;
+            final title = data?['title']?.toString().toLowerCase() ?? '';
+            final desc = data?['description']?.toString().toLowerCase() ?? '';
+            final email = data?['userEmail']?.toString().toLowerCase() ?? '';
+            return title.contains(query) || desc.contains(query) || email.contains(query);
+          }).toList();
+        }
+
+        // Sắp xếp theo timestamp giảm dần
+        filteredDocs.sort((a, b) {
+          final aTime = (a.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
+          final bTime = (b.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime);
+        });
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTabHeader(
+              'Báo cáo Bug & Crashlytics',
+              'Giám sát lỗi Crashlytics tự động từ thiết bị và phản hồi từ người dùng',
             ),
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('bugs').snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            const SizedBox(height: 20),
 
-                var docs = snapshot.data!.docs;
-                final query = _bugSearchController.text.trim().toLowerCase();
-                if (query.isNotEmpty) {
-                  docs = docs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>?;
-                    final title = data?['title']?.toString().toLowerCase() ?? '';
-                    final desc = data?['description']?.toString().toLowerCase() ?? '';
-                    final email = data?['userEmail']?.toString().toLowerCase() ?? '';
-                    return title.contains(query) || desc.contains(query) || email.contains(query);
-                  }).toList();
-                }
-
-                // Sắp xếp theo timestamp giảm dần
-                docs.sort((a, b) {
-                  final aTime = (a.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
-                  final bTime = (b.data() as Map<String, dynamic>?)?['timestamp'] as Timestamp?;
-                  if (aTime == null) return 1;
-                  if (bTime == null) return -1;
-                  return bTime.compareTo(aTime);
-                });
-
-                if (docs.isEmpty) {
-                  return Center(
-                    child: Text('Không tìm thấy báo cáo lỗi nào.', style: GoogleFonts.outfit(color: Colors.white60)),
-                  );
-                }
-
-                return SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: 40,
-                      columns: [
-                        DataColumn(label: Text('Loại Lỗi', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Người Gửi / Email', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Tiêu Đề / Sự Cố', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Trạng Thái', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Thời Gian', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Hành Động', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                      ],
-                      rows: docs.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>? ?? {};
-                        final type = data['type'] ?? 'User Report';
-                        final email = data['userEmail'] ?? 'anonymous';
-                        final title = data['title'] ?? 'N/A';
-                        final status = data['status'] ?? 'Mới';
-                        final timestamp = data['timestamp'] as Timestamp?;
-                        final formattedDate = timestamp != null
-                            ? DateFormat('HH:mm dd/MM/yyyy').format(timestamp.toDate())
-                            : 'N/A';
-
-                        Color statusColor = Colors.orangeAccent;
-                        if (status == 'Đang xử lý') statusColor = Colors.cyanAccent;
-                        if (status == 'Đã giải quyết') statusColor = Colors.greenAccent;
-
-                        Color typeColor = Colors.yellowAccent;
-                        if (type.toString().contains('Fatal')) typeColor = Colors.redAccent;
-
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(type, style: TextStyle(color: typeColor, fontWeight: FontWeight.bold, fontSize: 13))),
-                            DataCell(Text(email, style: const TextStyle(color: Colors.white70))),
-                            DataCell(Text(
-                              title.length > 30 ? '${title.substring(0, 30)}...' : title,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                            )),
-                            DataCell(Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
-                            )),
-                            DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
-                            DataCell(ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.pinkAccent.withOpacity(0.2),
-                                side: const BorderSide(color: Colors.pinkAccent, width: 1),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                              onPressed: () => _showBugDetailDialog(doc),
-                              child: const Text('Chi Tiết', style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold)),
-                            )),
-                          ],
-                        );
-                      }).toList(),
+            // Hàng Thẻ Thống Kê Mini
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final crossAxisCount = constraints.maxWidth > 900 ? 4 : (constraints.maxWidth > 600 ? 2 : 1);
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: constraints.maxWidth > 900 ? 2.5 : 3.0,
+                  children: [
+                    _buildMiniStatCard(
+                      'TỔNG SỐ CRASH',
+                      totalCrashes.toString(),
+                      'Lỗi hệ thống tự bắt',
+                      Icons.offline_bolt,
+                      Colors.orangeAccent,
                     ),
-                  ),
+                    _buildMiniStatCard(
+                      'CRASH NGHIÊM TRỌNG (FATAL)',
+                      fatalCrashes.toString(),
+                      'Làm sập ứng dụng',
+                      Icons.dangerous,
+                      Colors.redAccent,
+                    ),
+                    _buildMiniStatCard(
+                      'BÁO CÁO NGƯỜI DÙNG',
+                      userReports.toString(),
+                      'Phản hồi thủ công',
+                      Icons.rate_review,
+                      Colors.blueAccent,
+                    ),
+                    _buildMiniStatCard(
+                      'BUG CHƯA XỬ LÝ',
+                      unresolvedBugs.toString(),
+                      'Cần kiểm tra lại',
+                      Icons.bug_report,
+                      Colors.yellowAccent,
+                    ),
+                  ],
                 );
               },
             ),
-          ),
-        )
-      ],
+            const SizedBox(height: 24),
+
+            // Thanh Bộ Lọc & Tìm Kiếm
+            Row(
+              children: [
+                Expanded(
+                  child: _buildSearchBar(
+                    _bugSearchController,
+                    'Tìm kiếm theo mô tả lỗi hoặc email...',
+                    () => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF334155)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedBugFilter,
+                      dropdownColor: const Color(0xFF1E293B),
+                      icon: const Icon(Icons.filter_alt, color: Colors.pinkAccent),
+                      style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w500),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('Tất cả lỗi')),
+                        DropdownMenuItem(value: 'Crashlytics', child: Text('Chỉ lỗi Crashlytics')),
+                        DropdownMenuItem(value: 'Fatal', child: Text('Chỉ lỗi sập app (Fatal)')),
+                        DropdownMenuItem(value: 'UserReport', child: Text('Chỉ báo cáo người dùng')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedBugFilter = val;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Bảng Danh Sách Lỗi
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: filteredDocs.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Không tìm thấy báo cáo lỗi nào phù hợp.',
+                          style: GoogleFonts.outfit(color: Colors.white60),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            columnSpacing: 40,
+                            columns: [
+                              DataColumn(
+                                label: Text(
+                                  'Nguồn / Loại Lỗi',
+                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Người Gửi / Email',
+                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Tiêu Đề / Sự Cố',
+                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Trạng Thái',
+                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Thời Gian',
+                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Hành Động',
+                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                            rows: filteredDocs.map((doc) {
+                              final data = doc.data() as Map<String, dynamic>? ?? {};
+                              final type = data['type'] ?? 'User Report';
+                              final email = data['userEmail'] ?? 'anonymous';
+                              final title = data['title'] ?? 'N/A';
+                              final status = data['status'] ?? 'Mới';
+                              final timestamp = data['timestamp'] as Timestamp?;
+                              final formattedDate = timestamp != null
+                                  ? DateFormat('HH:mm dd/MM/yyyy').format(timestamp.toDate())
+                                  : 'N/A';
+
+                              Color statusColor = Colors.orangeAccent;
+                              if (status == 'Đang xử lý') statusColor = Colors.cyanAccent;
+                              if (status == 'Đã giải quyết') statusColor = Colors.greenAccent;
+
+                              // Badge thiết kế nguồn lỗi chuyên nghiệp
+                              Widget sourceBadge;
+                              if (type.toString().contains('Fatal')) {
+                                sourceBadge = Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.redAccent.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.flash_on, color: Colors.redAccent, size: 13),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Fatal Crashlytics',
+                                        style: TextStyle(
+                                          color: Colors.redAccent,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              } else if (type.toString().contains('Crash')) {
+                                sourceBadge = Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orangeAccent.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.bug_report, color: Colors.orangeAccent, size: 13),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Crashlytics',
+                                        style: TextStyle(
+                                          color: Colors.orangeAccent,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              } else {
+                                sourceBadge = Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blueAccent.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.person, color: Colors.blueAccent, size: 13),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'User Report',
+                                        style: TextStyle(
+                                          color: Colors.blueAccent,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+
+                              return DataRow(
+                                cells: [
+                                  DataCell(sourceBadge),
+                                  DataCell(Text(email, style: const TextStyle(color: Colors.white70))),
+                                  DataCell(Text(
+                                    title.length > 30 ? '${title.substring(0, 30)}...' : title,
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                                  )),
+                                  DataCell(Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: statusColor.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child:
+                                        Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                                  )),
+                                  DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
+                                  DataCell(ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.pinkAccent.withOpacity(0.2),
+                                      side: const BorderSide(color: Colors.pinkAccent, width: 1),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    ),
+                                    onPressed: () => _showBugDetailDialog(doc),
+                                    child: const Text(
+                                      'Chi Tiết',
+                                      style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold),
+                                    ),
+                                  )),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1634,6 +1882,54 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMiniStatCard(String title, String value, String subtitle, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF334155), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.outfit(color: Colors.white60, fontSize: 9),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
