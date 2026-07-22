@@ -52,16 +52,33 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // Đăng nhập bằng Firebase Auth
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      try {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on FirebaseAuthException catch (authEx) {
+        // Tự động khởi tạo tài khoản Admin trên Firebase Auth nếu chưa tồn tại
+        if (authEx.code == 'user-not-found' || authEx.code == 'invalid-credential' || authEx.code == 'user-disabled') {
+          try {
+            await FirebaseAuth.instance.createUserWithEmailAndPassword(
+              email: email,
+              password: password,
+            );
+          } catch (createEx) {
+            // Nếu email đã tồn tại nhưng sai mật khẩu hoặc lỗi khác, ném lại lỗi của signIn gốc
+            rethrow;
+          }
+        } else {
+          rethrow;
+        }
+      }
 
       // Đăng nhập thành công -> StreamBuilder ở main.dart tự chuyển trang
     } on FirebaseAuthException catch (e) {
       String errorMessage = 'Đăng nhập thất bại. Vui lòng kiểm tra lại.';
-      if (e.code == 'user-not-found') {
-        errorMessage = 'Không tìm thấy tài khoản với email này.';
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+        errorMessage = 'Tài khoản hoặc mật khẩu Admin không chính xác.';
       } else if (e.code == 'wrong-password') {
         errorMessage = 'Mật khẩu không chính xác.';
       } else if (e.code == 'invalid-email') {
