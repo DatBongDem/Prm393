@@ -468,7 +468,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               
               // Biểu đồ
               SizedBox(
-                height: 200,
+                height: 220,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   crossAxisAlignment: CrossAxisAlignment.end,
