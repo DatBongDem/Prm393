@@ -42,11 +42,6 @@ class ProfileViewModel extends ChangeNotifier {
   Stream<List<QueryDocumentSnapshot>> get notificationsStream =>
       _firestoreService.getNotificationsStream();
 
-  /// Thêm một thông báo mới vào Firestore
-  static void addMockNotification(String title, String body) {
-    FirestoreService().addNotification(title, body);
-  }
-
   /// Xuất báo cáo PDF cho [topic] rồi tải lên Firebase Storage và lưu
   /// siêu dữ liệu vào Firestore. Trả về null nếu thành công, ngược lại
   /// trả về thông báo lỗi để View hiển thị.
@@ -133,11 +128,11 @@ class ProfileViewModel extends ChangeNotifier {
     await FirebaseAuth.instance.signOut();
   }
 
-  /// Gửi thông báo FCM demo "nhắc nhở viết nhật ký" tới topic reminder_journal.
+  /// Gửi push thật "nhắc nhở viết nhật ký" qua FCM tới topic reminder_journal.
   Future<void> sendJournalReminderNotification() =>
       FcmSenderService.sendJournalReminderNotification();
 
-  /// Gửi thông báo FCM demo tùy chỉnh tới topic reminder_journal.
+  /// Gửi push thật tùy chỉnh qua FCM tới topic reminder_journal.
   Future<void> sendCustomNotification(String title, String body) =>
       FcmSenderService.sendCustomNotification(title, body);
 
