@@ -141,23 +141,43 @@ class ProfileViewModel extends ChangeNotifier {
   Future<void> sendCustomNotification(String title, String body) =>
       FcmSenderService.sendCustomNotification(title, body);
 
-  /// Kiểm thử Crashlytics: gây crash thật (fatal) sau 1 giây.
+  /// Kiểm thử Crashlytics: gây crash thật (fatal) sau khi lưu lỗi lên Firestore.
   void triggerFatalCrash() {
     analyticsService.logButtonClick(
       buttonId: 'simulate_crash_btn',
       screenName: 'Profile',
     );
-    Future.delayed(const Duration(seconds: 1), () {
+    // Lưu thông tin crash giả lập lên Firestore trước để Admin có thể xem được
+    FirestoreService().reportBug(
+      title: 'Fatal Exception: java.lang.RuntimeException: Force Crash (Simulate Fatal)',
+      description: 'MainActivity.java - line 151\nTriggered from Profile Screen Simulate Crash Button',
+      deviceInfo: 'Simulated Fatal Crash Device',
+      type: 'Crash (Fatal)',
+    ).then((_) {
+      print('ProfileVM: Đã lưu fatal crash lên Firestore. Gây sập ứng dụng...');
+      FirebaseCrashlytics.instance.crash();
+    }).catchError((err) {
+      print('ProfileVM: Lỗi lưu Firestore: $err. Vẫn gây sập ứng dụng...');
       FirebaseCrashlytics.instance.crash();
     });
   }
 
-  /// Kiểm thử Crashlytics: ghi nhận một lỗi được xử lý (non-fatal).
+  /// Kiểm thử Crashlytics: ghi nhận một lỗi được xử lý (non-fatal) và lưu lên Firestore.
   void recordHandledException() {
     analyticsService.logButtonClick(
       buttonId: 'simulate_handled_exception_btn',
       screenName: 'Profile',
     );
+    // Lưu thông tin non-fatal crash lên Firestore
+    FirestoreService().reportBug(
+      title: 'Exception: Lỗi giả lập được xử lý bởi Crashlytics (Non-fatal error)',
+      description: 'profile_viewmodel.dart - line 162\nTriggered from Profile Screen Simulate Handled Exception Button',
+      deviceInfo: 'Simulated Non-Fatal Crash Device',
+      type: 'Crash (Non-Fatal)',
+    ).catchError((err) {
+      print('ProfileVM: Lỗi lưu non-fatal crash lên Firestore: $err');
+    });
+
     try {
       throw Exception(
         'Lỗi giả lập được xử lý bởi Crashlytics (Non-fatal error)',
