@@ -187,7 +187,7 @@ class FirebaseMessagingService {
       final body = message.notification?.body ?? '';
       
       // 1. Lưu thông báo vào Firestore
-      FirestoreService().addNotification(title, body, campaignId: message.data['campaignId']);
+      FirestoreService().addNotification(title, body, campaignId: message.data['campaignId'], isRead: true);
 
       // 2. Lưu thông báo vào bộ nhớ RAM
       addNotification(title, body);
@@ -204,7 +204,7 @@ class FirebaseMessagingService {
       final body = initialMessage.notification?.body ?? '';
       
       // 1. Lưu thông báo vào Firestore
-      FirestoreService().addNotification(title, body, campaignId: initialMessage.data['campaignId']);
+      FirestoreService().addNotification(title, body, campaignId: initialMessage.data['campaignId'], isRead: true);
 
       // 2. Lưu thông báo vào bộ nhớ RAM
       addNotification(title, body);

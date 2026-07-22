@@ -175,7 +175,7 @@ class FirestoreService {
   }
 
   // 6. Thêm thông báo mới nhận được vào Firestore
-  Future<void> addNotification(String title, String body, {String? campaignId}) async {
+  Future<void> addNotification(String title, String body, {String? campaignId, bool isRead = false}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
@@ -184,7 +184,7 @@ class FirestoreService {
         'body': body,
         'userId': user.uid,
         'receivedAt': FieldValue.serverTimestamp(),
-        'isRead': false, // Mặc định là chưa đọc
+        'isRead': isRead,
         if (campaignId != null) 'campaignId': campaignId,
       });
       print('Firestore: Đã lưu thông báo mới nhận được vào db.');
