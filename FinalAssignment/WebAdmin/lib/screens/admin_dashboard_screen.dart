@@ -708,45 +708,52 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: 40,
-                      columns: [
-                        DataColumn(label: Text('Email', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('User ID', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Số ngày Active', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Hoạt động cuối', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                      ],
-                      rows: list.map((user) {
-                        final lastActiveTs = user['lastActive'] as Timestamp?;
-                        final formattedDate = lastActiveTs != null
-                            ? DateFormat('HH:mm dd/MM/yyyy').format(lastActiveTs.toDate())
-                            : 'Không xác định';
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            columnSpacing: 40,
+                            columns: [
+                              DataColumn(label: Text('Email', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('User ID', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Số ngày Active', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Hoạt động cuối', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                            ],
+                            rows: list.map((user) {
+                              final lastActiveTs = user['lastActive'] as Timestamp?;
+                              final formattedDate = lastActiveTs != null
+                                  ? DateFormat('HH:mm dd/MM/yyyy').format(lastActiveTs.toDate())
+                                  : 'Không xác định';
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(user['email'] as String, style: const TextStyle(color: Colors.white70))),
-                            DataCell(Text(user['userId'] as String, style: const TextStyle(color: Colors.white54, fontSize: 12))),
-                            DataCell(Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.pinkAccent.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${user['activeDays']} ngày',
-                                style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 13),
-                              ),
-                            )),
-                            DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white70))),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(user['email'] as String, style: const TextStyle(color: Colors.white70))),
+                                  DataCell(Text(user['userId'] as String, style: const TextStyle(color: Colors.white54, fontSize: 12))),
+                                  DataCell(Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.pinkAccent.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '${user['activeDays']} ngày',
+                                      style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                  )),
+                                  DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white70))),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -809,65 +816,72 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: 40,
-                      columns: [
-                        DataColumn(label: Text('Chủ đề (Topic)', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Tên tệp (File Name)', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Ngày tạo', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Hành động', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
-                      ],
-                      rows: docs.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>? ?? {};
-                        final docId = doc.id;
-                        final topic = data['topic'] ?? 'N/A';
-                        final fileName = data['fileName'] ?? 'N/A';
-                        final pdfUrl = data['pdfUrl'] ?? '';
-                        final createdAt = data['createdAt'] as Timestamp?;
-                        final formattedDate = createdAt != null
-                            ? DateFormat('HH:mm dd/MM/yyyy').format(createdAt.toDate())
-                            : 'N/A';
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            columnSpacing: 40,
+                            columns: [
+                              DataColumn(label: Text('Chủ đề (Topic)', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Tên tệp (File Name)', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Ngày tạo', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Hành động', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))),
+                            ],
+                            rows: docs.map((doc) {
+                              final data = doc.data() as Map<String, dynamic>? ?? {};
+                              final docId = doc.id;
+                              final topic = data['topic'] ?? 'N/A';
+                              final fileName = data['fileName'] ?? 'N/A';
+                              final pdfUrl = data['pdfUrl'] ?? '';
+                              final createdAt = data['createdAt'] as Timestamp?;
+                              final formattedDate = createdAt != null
+                                  ? DateFormat('HH:mm dd/MM/yyyy').format(createdAt.toDate())
+                                  : 'N/A';
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(topic, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500))),
-                            DataCell(Text(fileName, style: const TextStyle(color: Colors.white70, fontSize: 13))),
-                            DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
-                            DataCell(Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.open_in_new, color: Colors.pinkAccent),
-                                  tooltip: 'Mở / Xem PDF',
-                                  onPressed: () async {
-                                    if (pdfUrl.isNotEmpty) {
-                                      final uri = Uri.parse(pdfUrl);
-                                      if (await canLaunchUrl(uri)) {
-                                        await launchUrl(uri);
-                                      } else {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Không thể mở đường dẫn PDF này.')),
-                                        );
-                                      }
-                                    }
-                                  },
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                  tooltip: 'Xóa tài liệu',
-                                  onPressed: () => _deletePdf(docId, pdfUrl),
-                                ),
-                              ],
-                            )),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(topic, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500))),
+                                  DataCell(Text(fileName, style: const TextStyle(color: Colors.white70, fontSize: 13))),
+                                  DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.open_in_new, color: Colors.pinkAccent),
+                                        tooltip: 'Mở / Xem PDF',
+                                        onPressed: () async {
+                                          if (pdfUrl.isNotEmpty) {
+                                            final uri = Uri.parse(pdfUrl);
+                                            if (await canLaunchUrl(uri)) {
+                                              await launchUrl(uri);
+                                            } else {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Không thể mở đường dẫn PDF này.')),
+                                              );
+                                            }
+                                          }
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                        tooltip: 'Xóa tài liệu',
+                                        onPressed: () => _deletePdf(docId, pdfUrl),
+                                      ),
+                                    ],
+                                  )),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -1125,178 +1139,185 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           style: GoogleFonts.outfit(color: Colors.white60),
                         ),
                       )
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.vertical,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            columnSpacing: 40,
-                            columns: [
-                              DataColumn(
-                                label: Text(
-                                  'Nguồn / Loại Lỗi',
-                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Người Gửi / Email',
-                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Tiêu Đề / Sự Cố',
-                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Trạng Thái',
-                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Thời Gian',
-                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Hành Động',
-                                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                            rows: filteredDocs.map((doc) {
-                              final data = doc.data() as Map<String, dynamic>? ?? {};
-                              final type = data['type'] ?? 'User Report';
-                              final email = data['userEmail'] ?? 'anonymous';
-                              final title = data['title'] ?? 'N/A';
-                              final status = data['status'] ?? 'Mới';
-                              final timestamp = data['timestamp'] as Timestamp?;
-                              final formattedDate = timestamp != null
-                                  ? DateFormat('HH:mm dd/MM/yyyy').format(timestamp.toDate())
-                                  : 'N/A';
-
-                              Color statusColor = Colors.orangeAccent;
-                              if (status == 'Đang xử lý') statusColor = Colors.cyanAccent;
-                              if (status == 'Đã giải quyết') statusColor = Colors.greenAccent;
-
-                              // Badge thiết kế nguồn lỗi chuyên nghiệp
-                              Widget sourceBadge;
-                              if (type.toString().contains('Fatal')) {
-                                sourceBadge = Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.redAccent.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.flash_on, color: Colors.redAccent, size: 13),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Fatal Crashlytics',
-                                        style: TextStyle(
-                                          color: Colors.redAccent,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 11,
-                                        ),
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.vertical,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                child: DataTable(
+                                  columnSpacing: 40,
+                                  columns: [
+                                    DataColumn(
+                                      label: Text(
+                                        'Nguồn / Loại Lỗi',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
                                       ),
-                                    ],
-                                  ),
-                                );
-                              } else if (type.toString().contains('Crash')) {
-                                sourceBadge = Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orangeAccent.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.bug_report, color: Colors.orangeAccent, size: 13),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Crashlytics',
-                                        style: TextStyle(
-                                          color: Colors.orangeAccent,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 11,
-                                        ),
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Người Gửi / Email',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
                                       ),
-                                    ],
-                                  ),
-                                );
-                              } else {
-                                sourceBadge = Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blueAccent.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.person, color: Colors.blueAccent, size: 13),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'User Report',
-                                        style: TextStyle(
-                                          color: Colors.blueAccent,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 11,
-                                        ),
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Tiêu Đề / Sự Cố',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
                                       ),
-                                    ],
-                                  ),
-                                );
-                              }
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Trạng Thái',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Thời Gian',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: Text(
+                                        'Hành Động',
+                                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                  rows: filteredDocs.map((doc) {
+                                    final data = doc.data() as Map<String, dynamic>? ?? {};
+                                    final type = data['type'] ?? 'User Report';
+                                    final email = data['userEmail'] ?? 'anonymous';
+                                    final title = data['title'] ?? 'N/A';
+                                    final status = data['status'] ?? 'Mới';
+                                    final timestamp = data['timestamp'] as Timestamp?;
+                                    final formattedDate = timestamp != null
+                                        ? DateFormat('HH:mm dd/MM/yyyy').format(timestamp.toDate())
+                                        : 'N/A';
 
-                              return DataRow(
-                                cells: [
-                                  DataCell(sourceBadge),
-                                  DataCell(Text(email, style: const TextStyle(color: Colors.white70))),
-                                  DataCell(Text(
-                                    title.length > 30 ? '${title.substring(0, 30)}...' : title,
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                                  )),
-                                  DataCell(Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: statusColor.withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child:
-                                        Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
-                                  )),
-                                  DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
-                                  DataCell(ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.pinkAccent.withOpacity(0.2),
-                                      side: const BorderSide(color: Colors.pinkAccent, width: 1),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    ),
-                                    onPressed: () => _showBugDetailDialog(doc),
-                                    child: const Text(
-                                      'Chi Tiết',
-                                      style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold),
-                                    ),
-                                  )),
-                                ],
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
+                                    Color statusColor = Colors.orangeAccent;
+                                    if (status == 'Đang xử lý') statusColor = Colors.cyanAccent;
+                                    if (status == 'Đã giải quyết') statusColor = Colors.greenAccent;
+
+                                    // Badge thiết kế nguồn lỗi chuyên nghiệp
+                                    Widget sourceBadge;
+                                    if (type.toString().contains('Fatal')) {
+                                      sourceBadge = Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.redAccent.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.flash_on, color: Colors.redAccent, size: 13),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Fatal Crashlytics',
+                                              style: TextStyle(
+                                                color: Colors.redAccent,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    } else if (type.toString().contains('Crash')) {
+                                      sourceBadge = Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orangeAccent.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.bug_report, color: Colors.orangeAccent, size: 13),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Crashlytics',
+                                              style: TextStyle(
+                                                color: Colors.orangeAccent,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    } else {
+                                      sourceBadge = Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blueAccent.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.person, color: Colors.blueAccent, size: 13),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'User Report',
+                                              style: TextStyle(
+                                                color: Colors.blueAccent,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+
+                                    return DataRow(
+                                      cells: [
+                                        DataCell(sourceBadge),
+                                        DataCell(Text(email, style: const TextStyle(color: Colors.white70))),
+                                        DataCell(Text(
+                                          title.length > 30 ? '${title.substring(0, 30)}...' : title,
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                                        )),
+                                        DataCell(Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: statusColor.withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child:
+                                              Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                                        )),
+                                        DataCell(Text(formattedDate, style: const TextStyle(color: Colors.white60))),
+                                        DataCell(ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.pinkAccent.withOpacity(0.2),
+                                            side: const BorderSide(color: Colors.pinkAccent, width: 1),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          ),
+                                          onPressed: () => _showBugDetailDialog(doc),
+                                          child: const Text(
+                                            'Chi Tiết',
+                                            style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold),
+                                          ),
+                                        )),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      )
               ),
             ),
           ],
