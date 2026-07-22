@@ -108,6 +108,10 @@ class ProfileViewModel extends ChangeNotifier {
   Future<void> clearAllNotifications() =>
       _firestoreService.clearAllNotifications();
 
+  /// Đánh dấu một thông báo đã đọc.
+  Future<void> markNotificationAsRead(String docId) =>
+      _firestoreService.markNotificationAsRead(docId);
+
   /// Đăng xuất: ghi sự kiện Analytics, hủy đăng ký topic FCM rồi signOut.
   Future<void> signOut() async {
     analyticsService.logButtonClick(
