@@ -30,27 +30,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _notiBodyController = TextEditingController();
   bool _isSendingNotification = false;
 
-  // Mock campaigns history with Sent, Received, Viewed statistics
-  static final List<Map<String, dynamic>> _mockCampaigns = [
-    {
-      'title': 'Cập nhật tính năng mới 🚀',
-      'body': 'Ứng dụng di động đã hỗ trợ tính năng xuất PDF nhanh hơn gấp 2 lần. Trải nghiệm ngay!',
-      'sentAt': DateTime.now().subtract(const Duration(days: 3)),
-      'status': 'Thành công',
-      'sentCount': 150,
-      'receivedCount': 142,
-      'viewedCount': 98,
-    },
-    {
-      'title': 'Nhắc nhở viết nhật ký nghiên cứu 📝',
-      'body': 'Đừng quên ghi lại những ý tưởng khoa học sáng tạo ngày hôm nay của bạn.',
-      'sentAt': DateTime.now().subtract(const Duration(days: 1)),
-      'status': 'Thành công',
-      'sentCount': 150,
-      'receivedCount': 136,
-      'viewedCount': 110,
-    },
-  ];
+
 
   @override
   void dispose() {
@@ -1401,7 +1381,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           userEmails.add(email);
         }
       }
-      final int sent = userEmails.length > 0 ? userEmails.length : 1;
+      final int sent = userEmails.isNotEmpty ? userEmails.length : 1;
 
       // 2. Tạo bản ghi chiến dịch gửi trên Firestore 'campaigns' ở trạng thái 'Đang gửi'
       final docRef = await FirebaseFirestore.instance.collection('campaigns').add({
