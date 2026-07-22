@@ -1829,15 +1829,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     try {
       // 1. Tính tổng số active users đăng ký trong hệ thống
       final activeUsersSnap = await FirebaseFirestore.instance.collection('active_users').get();
-      final userEmails = new Set();
-      for (var doc of activeUsersSnap.docs) {
+      final userEmails = <String>{};
+      for (var doc in activeUsersSnap.docs) {
         final data = doc.data();
         final email = data['email'];
-        if (email != null && email.toString().trim() !== '') {
+        if (email != null && email.toString().trim().isNotEmpty) {
           userEmails.add(email.toString());
         }
       }
-      final int sent = userEmails.size > 0 ? userEmails.size : 1;
+      final int sent = userEmails.isNotEmpty ? userEmails.length : 1;
 
       // 2. Tạo bản ghi chiến dịch gửi trên Firestore 'campaigns' ở trạng thái 'Đang gửi'
       final docRef = await FirebaseFirestore.instance.collection('campaigns').add({
