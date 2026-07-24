@@ -69,15 +69,25 @@ Future<void> pauseForDataPreview(
 
 /// Thực hiện tìm kiếm một chủ đề tại màn hình Home.
 Future<void> searchTopic(PatrolIntegrationTester $, String topic) async {
-  await waitForDashboardResults($);
-
   final searchField = $(#dashboard_topic_search);
-  await searchField.scrollTo();
-  await searchField.waitUntilVisible(timeout: const Duration(seconds: 15));
-  await searchField.enterText(topic);
-  await $.tester.testTextInput.receiveAction(TextInputAction.search);
+  await searchField.waitUntilVisible(timeout: const Duration(seconds: 30));
 
-  await waitForDashboardResults($);
+  Object? lastError;
+  for (var attempt = 0; attempt < 2; attempt++) {
+    await searchField.enterText(topic);
+    await $.tester.testTextInput.receiveAction(TextInputAction.search);
+
+    try {
+      await waitForDashboardResults($, timeout: const Duration(seconds: 90));
+      return;
+    } catch (error) {
+      lastError = error;
+      await $.pump(const Duration(seconds: 2));
+      await searchField.waitUntilVisible(timeout: const Duration(seconds: 15));
+    }
+  }
+
+  throw lastError ?? TimeoutException('Không thấy dữ liệu sau khi tìm kiếm');
 }
 
 /// Chờ dữ liệu phân tích hiện ra và scroll tới vùng kết quả nếu nó nằm dưới màn.

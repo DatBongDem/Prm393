@@ -24,6 +24,18 @@ class OpenAlexService {
   static const int latestPageSize = 20;
 
   String get _contactEmail => FirebaseConfig.openAlexEmail;
+  String get _apiKey => FirebaseConfig.openAlexApiKey.trim();
+
+  Map<String, String> _withAuth([
+    Map<String, String> queryParameters = const {},
+  ]) {
+    return {
+      ...queryParameters,
+      'mailto': _contactEmail,
+      if (_apiKey.isNotEmpty && _apiKey != 'YOUR_OPENALEX_API_KEY_HERE')
+        'api_key': _apiKey,
+    };
+  }
 
   Future<OpenAlexSearchResult> fetchPublications(String query) {
     return _fetchWorks({
@@ -54,10 +66,7 @@ class OpenAlexService {
     Map<String, String> queryParameters, {
     required int pageSize,
   }) async {
-    final uri = Uri.https(baseUrl, '/works', {
-      ...queryParameters,
-      'mailto': _contactEmail,
-    });
+    final uri = Uri.https(baseUrl, '/works', _withAuth(queryParameters));
 
     try {
       final response = await http.get(uri);
@@ -90,9 +99,7 @@ class OpenAlexService {
 
   Future<AuthorDetail> fetchAuthorDetail(String authorId) async {
     final normalizedAuthorId = authorId.trim();
-    final uri = Uri.https(baseUrl, '/authors/$normalizedAuthorId', {
-      'mailto': _contactEmail,
-    });
+    final uri = Uri.https(baseUrl, '/authors/$normalizedAuthorId', _withAuth());
 
     try {
       final response = await http.get(uri);
@@ -122,11 +129,11 @@ class OpenAlexService {
       return fetchAuthorDetail(authorId);
     }
 
-    final uri = Uri.https(baseUrl, '/authors', {
-      'search': authorName,
-      'per-page': '10',
-      'mailto': _contactEmail,
-    });
+    final uri = Uri.https(
+      baseUrl,
+      '/authors',
+      _withAuth({'search': authorName, 'per-page': '10'}),
+    );
 
     try {
       final response = await http.get(uri);

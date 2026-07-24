@@ -1327,6 +1327,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // Hộp thoại xem chi tiết Bug và cập nhật trạng thái
   void _showBugDetailDialog(DocumentSnapshot doc) {
+    final initialData = doc.data() as Map<String, dynamic>? ?? {};
+    String currentLocalStatus = initialData['status'] ?? 'Mới';
+
     showDialog(
       context: context,
       builder: (context) {
@@ -1338,7 +1341,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             final title = data['title'] ?? 'N/A';
             final description = data['description'] ?? '';
             final deviceInfo = data['deviceInfo'] ?? 'N/A';
-            final status = data['status'] ?? 'Mới';
+            final status = currentLocalStatus;
             final timestamp = data['timestamp'] as Timestamp?;
             final formattedDate = timestamp != null
                 ? DateFormat('HH:mm:ss dd/MM/yyyy').format(timestamp.toDate())
@@ -1413,9 +1416,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildStatusUpdateBtn(doc.id, 'Mới', Colors.orangeAccent, status, setDialogState),
-                          _buildStatusUpdateBtn(doc.id, 'Đang xử lý', Colors.cyanAccent, status, setDialogState),
-                          _buildStatusUpdateBtn(doc.id, 'Đã giải quyết', Colors.greenAccent, status, setDialogState),
+                          _buildStatusUpdateBtn(doc.id, 'Mới', Colors.orangeAccent, status, setDialogState, (newStatus) {
+                            currentLocalStatus = newStatus;
+                          }),
+                          _buildStatusUpdateBtn(doc.id, 'Đang xử lý', Colors.cyanAccent, status, setDialogState, (newStatus) {
+                            currentLocalStatus = newStatus;
+                          }),
+                          _buildStatusUpdateBtn(doc.id, 'Đã giải quyết', Colors.greenAccent, status, setDialogState, (newStatus) {
+                            currentLocalStatus = newStatus;
+                          }),
                         ],
                       ),
                     ],
@@ -1441,6 +1450,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     Color color,
     String currentStatus,
     StateSetter setDialogState,
+    ValueChanged<String> onStatusChanged,
   ) {
     final isCurrent = currentStatus == targetStatus;
     return ElevatedButton(
@@ -1456,7 +1466,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           'status': targetStatus,
         });
         setDialogState(() {
-          // Cập nhật local state của dialog
+          onStatusChanged(targetStatus);
         });
         setState(() {
           // Cập nhật dashboard state
