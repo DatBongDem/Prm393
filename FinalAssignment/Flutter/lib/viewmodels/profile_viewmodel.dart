@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/publication.dart';
@@ -41,11 +42,6 @@ class ProfileViewModel extends ChangeNotifier {
   /// Stream danh sách thông báo đã nhận của user hiện tại.
   Stream<List<QueryDocumentSnapshot>> get notificationsStream =>
       _firestoreService.getNotificationsStream();
-
-  /// Thêm một thông báo mới vào Firestore
-  static void addMockNotification(String title, String body) {
-    FirestoreService().addNotification(title, body);
-  }
 
   /// Xuất báo cáo PDF cho [topic] rồi tải lên Firebase Storage và lưu
   /// siêu dữ liệu vào Firestore. Trả về null nếu thành công, ngược lại
@@ -133,13 +129,56 @@ class ProfileViewModel extends ChangeNotifier {
     await FirebaseAuth.instance.signOut();
   }
 
-  /// Gửi thông báo FCM demo "nhắc nhở viết nhật ký" tới topic reminder_journal.
+  /// Gửi push thật "nhắc nhở viết nhật ký" qua FCM tới topic reminder_journal.
   Future<void> sendJournalReminderNotification() =>
       FcmSenderService.sendJournalReminderNotification();
 
-  /// Gửi thông báo FCM demo tùy chỉnh tới topic reminder_journal.
+  /// Gửi push thật tùy chỉnh qua FCM tới topic reminder_journal.
   Future<void> sendCustomNotification(String title, String body) =>
       FcmSenderService.sendCustomNotification(title, body);
+
+  /// Tải ảnh đại diện lên Firebase Storage (path `avatars/{uid}.jpg`) và trả về
+  /// URL tải xuống. Dùng [putData] với bytes để tương thích mọi nền tảng.
+  Future<String> uploadAvatar(Uint8List bytes) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('Không tìm thấy người dùng đăng nhập.');
+    }
+    final ref = FirebaseStorage.instance.ref().child('avatars/${user.uid}.jpg');
+    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+    return ref.getDownloadURL();
+  }
+
+  /// Cập nhật hồ sơ người dùng trên Firebase Authentication.
+  ///
+  /// Cho phép đổi tên hiển thị và ảnh đại diện (truyền chuỗi rỗng để xóa ảnh).
+  /// Trả về null nếu thành công, ngược lại trả về thông báo lỗi để View hiển thị.
+  Future<String?> updateProfile({
+    required String displayName,
+    required String photoUrl,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return 'Không tìm thấy người dùng đăng nhập.';
+
+    try {
+      await user.updateDisplayName(displayName.trim());
+      await user.updatePhotoURL(
+        photoUrl.trim().isEmpty ? null : photoUrl.trim(),
+      );
+      await user.reload();
+
+      analyticsService.logCustomEvent(
+        name: 'update_profile',
+        parameters: {'email': ?user.email},
+      );
+
+      notifyListeners();
+      return null;
+    } catch (e) {
+      debugPrint('Lỗi cập nhật hồ sơ: $e');
+      return 'Cập nhật hồ sơ thất bại: $e';
+    }
+  }
 
   /// Kiểm thử Crashlytics: gây crash thật (fatal) sau khi lưu lỗi lên Firestore.
   void triggerFatalCrash() {
@@ -148,18 +187,25 @@ class ProfileViewModel extends ChangeNotifier {
       screenName: 'Profile',
     );
     // Lưu thông tin crash giả lập lên Firestore trước để Admin có thể xem được
-    FirestoreService().reportBug(
-      title: 'Fatal Exception: java.lang.RuntimeException: Force Crash (Simulate Fatal)',
-      description: 'MainActivity.java - line 151\nTriggered from Profile Screen Simulate Crash Button',
-      deviceInfo: 'Simulated Fatal Crash Device',
-      type: 'Crash (Fatal)',
-    ).then((_) {
-      print('ProfileVM: Đã lưu fatal crash lên Firestore. Gây sập ứng dụng...');
-      FirebaseCrashlytics.instance.crash();
-    }).catchError((err) {
-      print('ProfileVM: Lỗi lưu Firestore: $err. Vẫn gây sập ứng dụng...');
-      FirebaseCrashlytics.instance.crash();
-    });
+    FirestoreService()
+        .reportBug(
+          title:
+              'Fatal Exception: java.lang.RuntimeException: Force Crash (Simulate Fatal)',
+          description:
+              'MainActivity.java - line 151\nTriggered from Profile Screen Simulate Crash Button',
+          deviceInfo: 'Simulated Fatal Crash Device',
+          type: 'Crash (Fatal)',
+        )
+        .then((_) {
+          print(
+            'ProfileVM: Đã lưu fatal crash lên Firestore. Gây sập ứng dụng...',
+          );
+          FirebaseCrashlytics.instance.crash();
+        })
+        .catchError((err) {
+          print('ProfileVM: Lỗi lưu Firestore: $err. Vẫn gây sập ứng dụng...');
+          FirebaseCrashlytics.instance.crash();
+        });
   }
 
   /// Kiểm thử Crashlytics: ghi nhận một lỗi được xử lý (non-fatal) và lưu lên Firestore.
@@ -169,14 +215,18 @@ class ProfileViewModel extends ChangeNotifier {
       screenName: 'Profile',
     );
     // Lưu thông tin non-fatal crash lên Firestore
-    FirestoreService().reportBug(
-      title: 'Exception: Lỗi giả lập được xử lý bởi Crashlytics (Non-fatal error)',
-      description: 'profile_viewmodel.dart - line 162\nTriggered from Profile Screen Simulate Handled Exception Button',
-      deviceInfo: 'Simulated Non-Fatal Crash Device',
-      type: 'Crash (Non-Fatal)',
-    ).catchError((err) {
-      print('ProfileVM: Lỗi lưu non-fatal crash lên Firestore: $err');
-    });
+    FirestoreService()
+        .reportBug(
+          title:
+              'Exception: Lỗi giả lập được xử lý bởi Crashlytics (Non-fatal error)',
+          description:
+              'profile_viewmodel.dart - line 162\nTriggered from Profile Screen Simulate Handled Exception Button',
+          deviceInfo: 'Simulated Non-Fatal Crash Device',
+          type: 'Crash (Non-Fatal)',
+        )
+        .catchError((err) {
+          print('ProfileVM: Lỗi lưu non-fatal crash lên Firestore: $err');
+        });
 
     try {
       throw Exception(
