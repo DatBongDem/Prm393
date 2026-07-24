@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/firebase_analytics_service.dart';
@@ -165,6 +168,180 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Mở hộp thoại chỉnh sửa hồ sơ: chọn ảnh từ máy (upload lên Firebase Storage)
+  /// hoặc nhập URL ảnh, cùng tên hiển thị — có kiểm tra hợp lệ; sau đó cập nhật
+  /// lên Firebase Authentication qua ProfileViewModel.
+  Future<void> _showEditProfileDialog() async {
+    final user = context.read<ProfileViewModel>().currentUser;
+    if (user == null) return;
+
+    final nameController = TextEditingController(text: user.displayName ?? '');
+    final photoController = TextEditingController(text: user.photoURL ?? '');
+    final formKey = GlobalKey<FormState>();
+    final existingPhotoUrl = user.photoURL;
+
+    // Bytes ảnh mới người dùng chọn (nếu có) — khai báo ở scope ngoài để đọc lại
+    // sau khi hộp thoại đóng.
+    Uint8List? pickedBytes;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Chỉnh sửa hồ sơ'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Ảnh xem trước: ưu tiên ảnh vừa chọn, rồi tới ảnh hiện tại.
+                  CircleAvatar(
+                    radius: 44,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: pickedBytes != null
+                        ? MemoryImage(pickedBytes!)
+                        : (existingPhotoUrl != null &&
+                              existingPhotoUrl.isNotEmpty)
+                        ? NetworkImage(existingPhotoUrl)
+                        : null,
+                    child:
+                        pickedBytes == null &&
+                            (existingPhotoUrl == null ||
+                                existingPhotoUrl.isEmpty)
+                        ? const Icon(Icons.person, size: 44, color: Colors.grey)
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final picked = await ImagePicker().pickImage(
+                        source: ImageSource.gallery,
+                        maxWidth: 512,
+                        imageQuality: 80,
+                      );
+                      if (picked == null) return;
+                      final bytes = await picked.readAsBytes();
+                      setDialogState(() => pickedBytes = bytes);
+                    },
+                    icon: const Icon(Icons.photo_library_outlined, size: 18),
+                    label: const Text('Chọn ảnh từ máy'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: nameController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Tên hiển thị',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (value) {
+                      final name = value?.trim() ?? '';
+                      if (name.isEmpty) return 'Vui lòng nhập tên hiển thị.';
+                      if (name.length < 2) {
+                        return 'Tên phải có ít nhất 2 ký tự.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: photoController,
+                    keyboardType: TextInputType.url,
+                    enabled: pickedBytes == null,
+                    decoration: InputDecoration(
+                      labelText: pickedBytes == null
+                          ? 'Hoặc dán URL ảnh (tùy chọn)'
+                          : 'Đang dùng ảnh vừa chọn',
+                      prefixIcon: const Icon(Icons.link),
+                    ),
+                    validator: (value) {
+                      // Nếu đã chọn ảnh từ máy thì bỏ qua kiểm tra URL.
+                      if (pickedBytes != null) return null;
+                      final url = value?.trim() ?? '';
+                      if (url.isEmpty) return null; // Tùy chọn
+                      final uri = Uri.tryParse(url);
+                      if (uri == null || !uri.hasScheme || !uri.isAbsolute) {
+                        return 'URL ảnh không hợp lệ.';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
+              child: const Text('Lưu'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || saved != true) {
+      nameController.dispose();
+      photoController.dispose();
+      return;
+    }
+
+    final viewModel = context.read<ProfileViewModel>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    String photoUrl = photoController.text;
+    try {
+      // Nếu người dùng chọn ảnh từ máy: upload lên Storage lấy URL tải xuống.
+      if (pickedBytes != null) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Đang tải ảnh đại diện lên Firebase Storage...'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        photoUrl = await viewModel.uploadAvatar(pickedBytes!);
+      }
+    } catch (e) {
+      nameController.dispose();
+      photoController.dispose();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Tải ảnh lên thất bại: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final errorMessage = await viewModel.updateProfile(
+      displayName: nameController.text,
+      photoUrl: photoUrl,
+    );
+    nameController.dispose();
+    photoController.dispose();
+
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(errorMessage ?? 'Cập nhật hồ sơ thành công!'),
+        backgroundColor: errorMessage == null ? null : Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = widget.remoteConfigService.getPrimaryColor();
@@ -246,6 +423,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _showEditProfileDialog,
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        label: const Text('Chỉnh sửa hồ sơ'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primaryColor,
+                          side: BorderSide(
+                            color: primaryColor.withValues(alpha: 0.5),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ],
@@ -929,17 +1121,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         await context
                             .read<ProfileViewModel>()
                             .markNotificationAsRead(doc.id);
-                        
+
                         // 2. Hiển thị Dialog chi tiết thông báo
                         if (!context.mounted) return;
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
-                            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            backgroundColor: isDark
+                                ? const Color(0xFF1E293B)
+                                : Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                             title: Row(
                               children: [
-                                const Icon(Icons.notifications_active, color: Colors.pinkAccent),
+                                const Icon(
+                                  Icons.notifications_active,
+                                  color: Colors.pinkAccent,
+                                ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
@@ -947,7 +1146,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     style: GoogleFonts.outfit(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
-                                      color: isDark ? Colors.white : Colors.black87,
+                                      color: isDark
+                                          ? Colors.white
+                                          : Colors.black87,
                                     ),
                                   ),
                                 ),
@@ -959,14 +1160,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 Text(
                                   timeStr,
-                                  style: GoogleFonts.inter(color: Colors.grey, fontSize: 11),
+                                  style: GoogleFonts.inter(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                  ),
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
                                   body,
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
-                                    color: isDark ? Colors.grey.shade300 : Colors.black87,
+                                    color: isDark
+                                        ? Colors.grey.shade300
+                                        : Colors.black87,
                                     height: 1.4,
                                   ),
                                 ),
@@ -977,7 +1183,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onPressed: () => Navigator.pop(context),
                                 child: Text(
                                   'Đóng',
-                                  style: GoogleFonts.outfit(color: Colors.pinkAccent, fontWeight: FontWeight.bold),
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.pinkAccent,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ],
@@ -986,10 +1195,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 6.0),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8.0,
+                          horizontal: 6.0,
+                        ),
                         decoration: BoxDecoration(
-                          color: !isRead 
-                              ? (isDark ? Colors.pinkAccent.withOpacity(0.05) : Colors.pinkAccent.withOpacity(0.03))
+                          color: !isRead
+                              ? (isDark
+                                    ? Colors.pinkAccent.withOpacity(0.05)
+                                    : Colors.pinkAccent.withOpacity(0.03))
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -1017,7 +1231,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               child: Text(
                                                 title,
                                                 style: GoogleFonts.outfit(
-                                                  fontWeight: !isRead ? FontWeight.bold : FontWeight.normal,
+                                                  fontWeight: !isRead
+                                                      ? FontWeight.bold
+                                                      : FontWeight.normal,
                                                   fontSize: 13,
                                                   color: isDark
                                                       ? Colors.white
@@ -1036,7 +1252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                   shape: BoxShape.circle,
                                                 ),
                                               ),
-                                            ]
+                                            ],
                                           ],
                                         ),
                                       ),
@@ -1059,7 +1275,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           ? Colors.grey.shade400
                                           : Colors.grey.shade600,
                                       height: 1.3,
-                                      fontWeight: !isRead ? FontWeight.w500 : FontWeight.normal,
+                                      fontWeight: !isRead
+                                          ? FontWeight.w500
+                                          : FontWeight.normal,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
